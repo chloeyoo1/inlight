@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+
+// import ResizeObserver from 'resize-observer-polyfill';
+
+// global.ResizeObserver = ResizeObserver; 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
