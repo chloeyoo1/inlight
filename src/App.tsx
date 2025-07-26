@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 import "@esri/calcite-components";
@@ -15,11 +15,15 @@ import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 import Weather from "@arcgis/core/widgets/Weather.js";
+import { ModelService, ModelInfo } from './services/modelService';
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
   const sketchVMRef = useRef<SketchViewModel | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   try {
     const { default: ARCGIS_API_KEY } = require('./key');
@@ -170,6 +174,20 @@ function App() {
 
   }, []);
 
+  // Load models from server on component mount
+  useEffect(() => {
+    loadModels();
+  }, []);
+
+  const loadModels = async () => {
+    try {
+      const serverModels = await ModelService.getModels();
+      setModels(serverModels);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    }
+  };
+
   const handleImportModel = async () => {
     await viewRef.current?.when();
     
@@ -185,35 +203,78 @@ function App() {
       }
 
       if (!file.name.endsWith(".glb") && !file.name.endsWith(".gltf") && !file.name.endsWith(".obj")) {
-        console.error("Invalid file type. Please upload a .glb or .gltf file.");
+        console.error("Invalid file type. Please upload a .glb, .gltf, or .obj file.");
         return;
       }
 
-      const fileBlob = new Blob([file], { type: file.type });
-      const objectUrl = URL.createObjectURL(fileBlob);
-      console.log("objectUrl", objectUrl);
+      setIsUploading(true);
+      setUploadError(null);
 
-      if (sceneRef.current && sketchVMRef.current) {
-        sketchVMRef.current.pointSymbol = {
-          type: "point-3d",
-          symbolLayers: [
-            {
-              type: "object",
-              resource: {
-                href: objectUrl,
-              },
-            }
-          ]
-        };
+      try {
+        // Upload file to server
+        const uploadResponse = await ModelService.uploadModel(file);
+        console.log("File uploaded successfully:", uploadResponse);
 
-        sketchVMRef.current.create("point");
-        console.log("Custom model added to the scene.");
-      } else {
-        console.error("Scene is not initialized.");
+        // Reload models list
+        await loadModels();
+
+        // Add model to scene using server URL
+        if (sceneRef.current && sketchVMRef.current) {
+          sketchVMRef.current.pointSymbol = {
+            type: "point-3d",
+            symbolLayers: [
+              {
+                type: "object",
+                resource: {
+                  href: uploadResponse.url,
+                },
+              }
+            ]
+          };
+
+          sketchVMRef.current.create("point");
+          console.log("Custom model added to the scene from server.");
+        } else {
+          console.error("Scene is not initialized.");
+        }
+      } catch (error) {
+        console.error("Upload failed:", error);
+        setUploadError(error instanceof Error ? error.message : 'Upload failed');
+      } finally {
+        setIsUploading(false);
       }
     };
 
     fileInput.click();
+  };
+
+  const handleSelectModel = async (model: ModelInfo) => {
+    if (sceneRef.current && sketchVMRef.current) {
+      sketchVMRef.current.pointSymbol = {
+        type: "point-3d",
+        symbolLayers: [
+          {
+            type: "object",
+            resource: {
+              href: model.url,
+            },
+          }
+        ]
+      };
+
+      sketchVMRef.current.create("point");
+      console.log("Model selected from server:", model.originalName);
+    }
+  };
+
+  const handleDeleteModel = async (filename: string) => {
+    try {
+      await ModelService.deleteModel(filename);
+      await loadModels(); // Reload the models list
+      console.log("Model deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete model:", error);
+    }
   };
 
   const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,9 +291,75 @@ function App() {
   return (
     <div className="App flex flex-col h-screen">
       <div id="viewDiv" className="flex-1"></div>
-      <div className="h-[200px] bg-gray-100 overflow-auto">
-        <calcite-button onClick={handleImportModel}>Import Your Model</calcite-button>
-        <input type="datetime-local" onChange={handleDatetimeChange} />
+      <div className="h-[300px] bg-gray-100 overflow-auto p-4">
+        <div className="flex flex-col gap-4">
+          {/* Upload Section */}
+          <div className="flex items-center gap-4">
+            <calcite-button 
+              onClick={handleImportModel}
+              disabled={isUploading}
+            >
+              {isUploading ? 'Uploading...' : 'Import Your Model'}
+            </calcite-button>
+            <input 
+              type="datetime-local" 
+              onChange={handleDatetimeChange}
+              className="border rounded px-2 py-1"
+            />
+          </div>
+
+          {/* Error Display */}
+          {uploadError && (
+            <div className="text-red-600 bg-red-100 p-2 rounded">
+              Error: {uploadError}
+            </div>
+          )}
+
+          {/* Models List */}
+          <div>
+            <h3 className="font-semibold mb-2">Available Models ({models.length})</h3>
+            {models.length === 0 ? (
+              <p className="text-gray-500">No models uploaded yet. Upload a model to get started.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {models.map((model) => (
+                  <div 
+                    key={model.filename} 
+                    className="border rounded p-2 bg-white hover:bg-gray-50 cursor-pointer"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate" title={model.originalName}>
+                          {model.originalName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {(model.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(model.uploadedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <button
+                          onClick={() => handleSelectModel(model)}
+                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                        >
+                          Use
+                        </button>
+                        <button
+                          onClick={() => handleDeleteModel(model.filename)}
+                          className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

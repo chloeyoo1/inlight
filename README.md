@@ -1,6 +1,60 @@
-# Getting Started with Create React App
+# Inlight - 3D Model Visualization
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based web application for visualizing 3D models in an ArcGIS SceneView environment. The application supports uploading and displaying 3D models in .glb, .gltf, and .obj formats.
+
+## Features
+
+- 3D model upload and visualization
+- ArcGIS SceneView integration
+- Real-time lighting controls
+- Model management (upload, select, delete)
+- Server-side file storage
+- Support for .glb, .gltf, and .obj file formats
+
+## Architecture
+
+This project consists of two main components:
+
+1. **React Client** (`src/`) - The main web application
+2. **Express Server** (`server/`) - Backend for file storage and management
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+- ArcGIS API key (see setup instructions below)
+
+### 1. Setup the Server
+
+```bash
+cd server
+npm install
+npm start
+```
+
+The server will run on `http://localhost:3001` by default.
+
+### 2. Setup the Client
+
+```bash
+# In the root directory
+npm install
+npm start
+```
+
+The React app will run on `http://localhost:3000`.
+
+### 3. ArcGIS API Key Setup
+
+Create a file `src/key.ts` with your ArcGIS API key:
+
+```typescript
+export const ARCGIS_API_KEY = 'your-api-key-here';
+```
+
+## Available Scripts
 
 ## Available Scripts
 
