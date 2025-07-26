@@ -18,6 +18,8 @@ import Weather from "@arcgis/core/widgets/Weather.js";
 import ShadowCast from '@arcgis/core/widgets/ShadowCast';
 import Daylight from "@arcgis/core/widgets/Daylight.js";
 
+type Geolocation = { lat: number; lon: number }
+
 function App() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
@@ -31,6 +33,8 @@ function App() {
   
   // Active widget state
   const [activeWidget, setActiveWidget] = useState<string>('none');
+
+  const [viewGeolocation, setViewGeolocation] = useState<Geolocation | null>(null);
 
   const widgets = [
     { id: 'none', name: 'None', ref: null },
@@ -74,7 +78,7 @@ function App() {
   }
 
   useEffect(() => {
-    const webScene = new WebScene({
+    const webScene = new WebScene({ 
       portalItem: {
         id: "79da6e264b6d4a0bb88366b57bdc037d" // OpenStreetMap
       }
@@ -270,6 +274,19 @@ function App() {
     fileInput.click();
   };
 
+  const getMapViewLocation = async () => {
+    if (!viewRef.current) {
+      console.warn("SceneView is not initialized.");
+      return;
+    }
+    await viewRef.current.when();
+    const center = viewRef.current.center;
+    setViewGeolocation({ 
+      lat: center.latitude ?? 0, 
+      lon: center.longitude ?? 0 
+    });
+  };
+
   const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDate = new Date(event.target.value);
     if (viewRef.current) {
@@ -277,9 +294,112 @@ function App() {
         type: "sun",
         date: selectedDate,
       };
+
       console.log("Lighting date updated to:", selectedDate);
     }
   };
+
+  const getWeather = async (geolocation: Geolocation) => {
+    const weatherUrl = `https://api.weather.gov/points/${geolocation.lat},${geolocation.lon}`;
+    try {
+      const response = await fetch(weatherUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log("Weather data:", data);
+      if (data.properties && data.properties.forecast) {
+        const forecastUrl = data.properties.forecast;
+        try {
+          const forecastResponse = await fetch(forecastUrl);
+          if (!forecastResponse.ok) {
+            throw new Error(`Forecast HTTP error! status: ${forecastResponse.status}`);
+          }
+          const forecastData = await forecastResponse.json();
+          console.log("Forecast data:", forecastData);
+          return forecastData;
+        } catch (forecastError) {
+          console.error("Error fetching forecast data:", forecastError);
+        }
+      }
+      // return data;
+    } catch (error) {
+      console.error("Error fetching weather data:", error);
+    }
+  };
+
+  function applyNWSWeatherToScene(nwsPeriod: any, view: SceneView) {
+    if (!viewRef.current || !nwsPeriod) return;
+
+    const forecast = nwsPeriod.shortForecast?.toLowerCase() || "";
+
+    let weatherType: "sunny" | "cloudy" | "rainy" | "snowy" = "sunny";
+    let cloudCover = 0.1;
+    let precipitationIntensity = 0;
+
+    if (forecast.includes("rain") || forecast.includes("showers") || forecast.includes("thunderstorm")) {
+      weatherType = "rainy";
+      precipitationIntensity = 0.7;
+      cloudCover = 0.7;
+    } else if (forecast.includes("snow") || forecast.includes("flurries") || forecast.includes("sleet")) {
+      weatherType = "snowy";
+      precipitationIntensity = 0.7;
+      cloudCover = 0.9;
+    } else if (forecast.includes("cloudy") || forecast.includes("overcast")) {
+      weatherType = "cloudy";
+      cloudCover = 0.6;
+    } else if (forecast.includes("clear") || forecast.includes("sunny")) {
+      weatherType = "sunny";
+      cloudCover = 0.1;
+    }
+
+    if (weatherType === "rainy") {
+      viewRef.current.environment.weather = {
+        type: "rainy",
+        cloudCover,
+        precipitation: precipitationIntensity
+      };
+    } else if (weatherType === "snowy") {
+      viewRef.current.environment.weather = {
+        type: "snowy",
+        cloudCover,
+        precipitation: precipitationIntensity
+      };
+    } else if (weatherType === "cloudy") {
+      viewRef.current.environment.weather = {
+        type: "cloudy",
+        cloudCover
+      };
+    } else {
+      viewRef.current.environment.weather = {
+        type: "sunny",
+        cloudCover
+      };
+    }
+
+    console.log("Applied weather to scene:", { weatherType, cloudCover, precipitationIntensity });
+    viewRef.current.environment.lighting = {
+      type: "sun",
+      date: new Date(nwsPeriod.startTime || Date.now()),
+    };
+  }
+
+
+  useEffect(() => {
+    if (viewRef && viewGeolocation) {
+      const weatherData = getWeather(viewGeolocation);
+      weatherData.then(data => {
+        if (data && data.properties && data.properties.periods && data.properties.periods.length > 0) {
+          const nwsPeriod = data.properties.periods[0];
+          applyNWSWeatherToScene(nwsPeriod, viewRef.current!);
+        } else {
+          console.warn("No valid weather periods found in the response.");
+        }
+      }).catch(error => {
+        console.error("Error fetching or applying weather data:", error);
+      });
+    }
+  }, [viewGeolocation]);
 
   return (
     <div className="App flex flex-col h-screen">
@@ -304,6 +424,8 @@ function App() {
         </div>
         
         <div className="mb-4 text-left">
+          <button onClick={getMapViewLocation}>update</button>
+
           <h3 className="text-lg font-semibold mb-2 text-left">Model Import</h3>
           <button 
             onClick={handleImportModel}
@@ -317,6 +439,7 @@ function App() {
           <h3 className="text-lg font-semibold mb-2 text-left">Lighting Control</h3>
           <input 
             type="datetime-local" 
+            value={new Date().toISOString().slice(0, 16)}
             onChange={handleDatetimeChange}
             className="px-3 py-1 border border-gray-300 rounded"
           />
