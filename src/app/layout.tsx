@@ -4,6 +4,11 @@ import "./globals.css";
 // Import ArcGIS CSS for proper styling
 import "@arcgis/core/assets/esri/themes/light/main.css";
 
+
+// import ResizeObserver from 'resize-observer-polyfill';
+
+// global.ResizeObserver = ResizeObserver; 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

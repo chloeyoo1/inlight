@@ -15,6 +15,38 @@ const ModelAnalyzer = dynamic(() => import("../components/ModelAnalyzer"), {
 });
 
 export default function Home() {
+  const mapDiv = useRef<HTMLDivElement>(null);
+
+  // TODO: Fix map import
+
+  useEffect(() => {
+    if (mapDiv.current) {
+      const map = new Map({
+        basemap: "satellite", 
+        ground: "world-elevation" 
+      });
+
+      const view = new SceneView({
+        container: mapDiv.current,
+        map: map,
+        camera: {
+          position: {
+            x: -118.80543, 
+            y: 34.02700,   
+            z: 1000        
+          },
+          tilt: 75
+        }
+      });
+
+      return () => {
+        if (view) {
+          view.destroy();
+        }
+      };
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
