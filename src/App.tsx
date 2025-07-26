@@ -14,6 +14,7 @@ import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
 import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
+import Weather from "@arcgis/core/widgets/Weather.js";
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
@@ -116,6 +117,10 @@ function App() {
       },
       qualityProfile: "high"
     });
+
+    const widget = new Weather({ view: view });
+
+    view.ui.add(widget, "bottom-left");
 
     const graphicsLayer = new GraphicsLayer({
       elevationInfo: { mode: "relative-to-ground" }
