@@ -118,7 +118,7 @@ function App() {
     });
 
     const graphicsLayer = new GraphicsLayer({
-      elevationInfo: { mode: "on-the-ground" }
+      elevationInfo: { mode: "relative-to-ground" }
     });
     view.map?.add(graphicsLayer);
 
@@ -170,7 +170,7 @@ function App() {
     
     const fileInput = document.createElement("input");
     fileInput.type = "file";
-    fileInput.accept = ".glb,.gltf";
+    fileInput.accept = ".glb,.gltf,.obj";
 
     fileInput.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
@@ -179,7 +179,7 @@ function App() {
         return;
       }
 
-      if (!file.name.endsWith(".glb") && !file.name.endsWith(".gltf")) {
+      if (!file.name.endsWith(".glb") && !file.name.endsWith(".gltf") && !file.name.endsWith(".obj")) {
         console.error("Invalid file type. Please upload a .glb or .gltf file.");
         return;
       }
@@ -211,11 +211,23 @@ function App() {
     fileInput.click();
   };
 
+  const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedDate = new Date(event.target.value);
+    if (viewRef.current) {
+      viewRef.current.environment.lighting = {
+        type: "sun",
+        date: selectedDate,
+      };
+      console.log("Lighting date updated to:", selectedDate);
+    }
+  };
+
   return (
     <div className="App flex flex-col h-screen">
       <div id="viewDiv" className="flex-1"></div>
       <div className="h-[200px] bg-gray-100 overflow-auto">
         <calcite-button onClick={handleImportModel}>Import Your Model</calcite-button>
+        <input type="datetime-local" onChange={handleDatetimeChange} />
       </div>
     </div>
   );
