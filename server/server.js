@@ -17,6 +17,27 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Function to check GLTF file for missing buffer references
+function checkGLTFBuffers(gltfPath) {
+  try {
+    const gltfContent = fs.readFileSync(gltfPath, 'utf8');
+    const gltf = JSON.parse(gltfContent);
+    
+    if (gltf.buffers) {
+      const missingBuffers = [];
+      gltf.buffers.forEach(buffer => {
+        if (buffer.uri && !fs.existsSync(path.join(uploadsDir, buffer.uri))) {
+          missingBuffers.push(buffer.uri);
+        }
+      });
+      return missingBuffers;
+    }
+  } catch (error) {
+    console.error('Error checking GLTF buffers:', error);
+  }
+  return [];
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -55,6 +76,31 @@ const upload = multer({
 // Serve static files from uploads directory
 app.use('/models', express.static(uploadsDir));
 
+// Middleware to handle missing buffer files for GLTF
+app.use('/models', (req, res, next) => {
+  const requestedFile = req.path.substring(1); // Remove leading slash
+  const filePath = path.join(uploadsDir, requestedFile);
+  
+  // Check if this is a request for a buffer file
+  if (requestedFile.endsWith('.bin') && !fs.existsSync(filePath)) {
+    console.warn(`Missing buffer file requested: ${requestedFile}`);
+    
+    // Create a minimal binary buffer with proper headers
+    const buffer = Buffer.alloc(16); // Small placeholder buffer
+    buffer.writeUInt32LE(0x46545047, 0); // Magic number for GLTF buffer
+    buffer.writeUInt32LE(16, 4); // Buffer length
+    buffer.writeUInt32LE(0, 8); // Padding
+    buffer.writeUInt32LE(0, 12); // Padding
+    
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+    return;
+  }
+  
+  next();
+});
+
 // Upload endpoint - now handles multiple files
 app.post('/upload', upload.array('model', 10), (req, res) => {
   try {
@@ -74,13 +120,24 @@ app.post('/upload', upload.array('model', 10), (req, res) => {
 
     const fileUrl = `${req.protocol}://${req.get('host')}/models/${mainFile.filename}`;
     
+    // Check for missing buffer files if this is a GLTF file
+    let warnings = [];
+    if (path.extname(mainFile.originalname).toLowerCase() === '.gltf') {
+      const missingBuffers = checkGLTFBuffers(path.join(uploadsDir, mainFile.filename));
+      if (missingBuffers.length > 0) {
+        warnings.push(`Missing buffer files: ${missingBuffers.join(', ')}. The model may not display correctly.`);
+        console.warn(`GLTF file ${mainFile.originalname} is missing buffer files:`, missingBuffers);
+      }
+    }
+    
     res.json({
       success: true,
       filename: mainFile.filename,
       originalName: mainFile.originalname,
       url: fileUrl,
       size: mainFile.size,
-      uploadedFiles: req.files.map(file => file.originalname)
+      uploadedFiles: req.files.map(file => file.originalname),
+      warnings: warnings
     });
   } catch (error) {
     console.error('Upload error:', error);
