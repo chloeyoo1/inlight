@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
 
 import "@esri/calcite-components";
@@ -15,11 +15,56 @@ import Graphic from '@arcgis/core/Graphic';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 import Weather from "@arcgis/core/widgets/Weather.js";
+import ShadowCast from '@arcgis/core/widgets/ShadowCast';
+import Daylight from "@arcgis/core/widgets/Daylight.js";
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
   const sketchVMRef = useRef<SketchViewModel | null>(null);
+  
+  // Widget refs
+  const editorRef = useRef<Editor | null>(null);
+  const weatherRef = useRef<Weather | null>(null);
+  const shadowCastRef = useRef<ShadowCast | null>(null);
+  const daylightRef = useRef<Daylight | null>(null);
+  
+  // Active widget state
+  const [activeWidget, setActiveWidget] = useState<string>('none');
+
+  const widgets = [
+    { id: 'none', name: 'None', ref: null },
+    { id: 'editor', name: 'Editor', ref: editorRef },
+    { id: 'weather', name: 'Weather', ref: weatherRef },
+    { id: 'shadowcast', name: 'Shadow Cast', ref: shadowCastRef },
+    { id: 'daylight', name: 'Daylight', ref: daylightRef }
+  ];
+
+  const switchWidget = (widgetId: string) => {
+    if (!viewRef.current) return;
+    
+    try {
+      // Hide all widgets first
+      widgets.forEach(widget => {
+        if (widget.ref?.current) {
+          viewRef.current!.ui.remove(widget.ref.current);
+        }
+      });
+      
+      // Show selected widget
+      if (widgetId !== 'none') {
+        const selectedWidget = widgets.find(w => w.id === widgetId);
+        if (selectedWidget?.ref?.current) {
+          viewRef.current.ui.add(selectedWidget.ref.current, "top-right");
+        }
+      }
+      
+      setActiveWidget(widgetId);
+    } catch (error) {
+      console.warn('Widget switching error:', error);
+      setActiveWidget(widgetId);
+    }
+  };
 
   try {
     const { default: ARCGIS_API_KEY } = require('./key');
@@ -118,9 +163,19 @@ function App() {
       qualityProfile: "high"
     });
 
-    const widget = new Weather({ view: view });
+    const weatherWidget = new Weather({ view: view });
+    weatherRef.current = weatherWidget;
 
-    view.ui.add(widget, "bottom-left");
+    const shadowCastWidget = new ShadowCast({
+      view: view
+    });
+    shadowCastRef.current = shadowCastWidget;
+
+    const daylightWidget = new Daylight({
+      view: view,
+      dateOrSeason: "date"
+    });
+    daylightRef.current = daylightWidget;
 
     const graphicsLayer = new GraphicsLayer({
       elevationInfo: { mode: "relative-to-ground" }
@@ -146,8 +201,7 @@ function App() {
           enabled: true,
         }
       });
-
-      view.ui.add(editor, "top-right");
+      editorRef.current = editor;
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
@@ -230,9 +284,43 @@ function App() {
   return (
     <div className="App flex flex-col h-screen">
       <div id="viewDiv" className="flex-1"></div>
-      <div className="h-[200px] bg-gray-100 overflow-auto">
-        <calcite-button onClick={handleImportModel}>Import Your Model</calcite-button>
-        <input type="datetime-local" onChange={handleDatetimeChange} />
+      <div className="h-[200px] bg-gray-100 overflow-auto p-4 text-left">
+        <div className="mb-4 text-left">
+          <div className="flex flex-wrap gap-2 mb-4 justify-start">
+            {widgets.map(widget => (
+              <button
+                key={widget.id}
+                onClick={() => switchWidget(widget.id)}
+                className={`px-3 py-1 rounded text-sm ${
+                  activeWidget === widget.id 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {widget.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <div className="mb-4 text-left">
+          <h3 className="text-lg font-semibold mb-2 text-left">Model Import</h3>
+          <button 
+            onClick={handleImportModel}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Import Your Model
+          </button>
+        </div>
+        
+        <div className="text-left">
+          <h3 className="text-lg font-semibold mb-2 text-left">Lighting Control</h3>
+          <input 
+            type="datetime-local" 
+            onChange={handleDatetimeChange}
+            className="px-3 py-1 border border-gray-300 rounded"
+          />
+        </div>
       </div>
     </div>
   );
