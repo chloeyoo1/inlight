@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@arcgis/map-components": "^4.33.11",
+    "@esri/calcite-components": "^3.2.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",

@@ -1,14 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import './App.css';
 
+import "@esri/calcite-components";
+import "@esri/calcite-components/dist/components/calcite-button";
+
 import esriConfig from '@arcgis/core/config';
 import WebScene from '@arcgis/core/WebScene';
 import SceneView from '@arcgis/core/views/SceneView';
 import Editor from '@arcgis/core/widgets/Editor';
+import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+// import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
+import Graphic from '@arcgis/core/Graphic';
+import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
+  const sketchVMRef = useRef<SketchViewModel | null>(null);
 
   try {
     const { default: ARCGIS_API_KEY } = require('./key');
@@ -23,7 +33,75 @@ function App() {
         id: "79da6e264b6d4a0bb88366b57bdc037d" // OpenStreetMap
       }
     });
-    
+
+    const recreationLayer = new FeatureLayer({
+      title: "Recreation",
+      url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
+      elevationInfo: {
+        mode: "absolute-height",
+      },
+      renderer: {
+        type: "unique-value", // autocasts as new UniqueValueRenderer()
+        field: "TYPE",
+        visualVariables: [
+          {
+            // size can be modified with the interactive handle
+            type: "size",
+            field: "SIZE",
+            axis: "height",
+            valueUnit: "meters",
+          },
+          {
+            // rotation can be modified with the interactive handle
+            type: "rotation",
+            field: "ROTATION",
+          },
+        ],
+        uniqueValueInfos: [
+          {
+            value: "1",
+            label: "Slide",
+            symbol: {
+              type: "point-3d", // autocasts as new PointSymbol3D()
+              symbolLayers: [
+                {
+                  type: "object",
+                  resource: {
+                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Slide.glb",
+                  },
+                },
+              ],
+              styleOrigin: {
+                styleName: "EsriRecreationStyle",
+                name: "Slide",
+              },
+            },
+          },
+          {
+            value: "2",
+            label: "Swing",
+            symbol: {
+              type: "point-3d", // autocasts as new PointSymbol3D()
+              symbolLayers: [
+                {
+                  type: "object",
+                  resource: {
+                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
+                  },
+                },
+              ],
+              styleOrigin: {
+                styleName: "EsriRecreationStyle",
+                name: "Swing",
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    webScene.add(recreationLayer);
+  
     sceneRef.current = webScene;
 
     // Create and setup the SceneView
@@ -38,6 +116,18 @@ function App() {
       },
       qualityProfile: "high"
     });
+
+    const graphicsLayer = new GraphicsLayer({
+      elevationInfo: { mode: "on-the-ground" }
+    });
+    view.map?.add(graphicsLayer);
+
+    const sketchVM = new SketchViewModel({
+      layer: graphicsLayer,
+      view: view,
+    });
+
+    sketchVMRef.current = sketchVM;
 
     viewRef.current = view;
 
@@ -58,7 +148,7 @@ function App() {
         navigator.geolocation.getCurrentPosition((position) => {
           view.goTo({
             center: [position.coords.longitude, position.coords.latitude],
-            zoom: 50,
+            zoom: 20,
             tilt: 45
           }, {
             duration: 2000
@@ -75,11 +165,57 @@ function App() {
 
   }, []);
 
+  const handleImportModel = async () => {
+    await viewRef.current?.when();
+    
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = ".glb,.gltf";
+
+    fileInput.onchange = async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        console.error("No file selected.");
+        return;
+      }
+
+      if (!file.name.endsWith(".glb") && !file.name.endsWith(".gltf")) {
+        console.error("Invalid file type. Please upload a .glb or .gltf file.");
+        return;
+      }
+
+      const fileBlob = new Blob([file], { type: file.type });
+      const objectUrl = URL.createObjectURL(fileBlob);
+      console.log("objectUrl", objectUrl);
+
+      if (sceneRef.current && sketchVMRef.current) {
+        sketchVMRef.current.pointSymbol = {
+          type: "point-3d",
+          symbolLayers: [
+            {
+              type: "object",
+              resource: {
+                href: objectUrl,
+              },
+            }
+          ]
+        };
+
+        sketchVMRef.current.create("point");
+        console.log("Custom model added to the scene.");
+      } else {
+        console.error("Scene is not initialized.");
+      }
+    };
+
+    fileInput.click();
+  };
+
   return (
     <div className="App flex flex-col h-screen">
       <div id="viewDiv" className="flex-1"></div>
       <div className="h-[200px] bg-gray-100 overflow-auto">
-      {/* Place for UI stuff */}
+        <calcite-button onClick={handleImportModel}>Import Your Model</calcite-button>
       </div>
     </div>
   );
