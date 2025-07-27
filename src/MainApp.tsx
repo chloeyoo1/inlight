@@ -28,6 +28,7 @@ import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 import Weather from "@arcgis/core/widgets/Weather.js";
 import ShadowCast from '@arcgis/core/widgets/ShadowCast';
 import Daylight from "@arcgis/core/widgets/Daylight.js";
+import Search from '@arcgis/core/widgets/Search';
 
 import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/weather_utils';
 import { ModelService, ModelInfo } from './services/modelService';
@@ -51,6 +52,7 @@ function MainApp() {
   
   // Sunlight layer state
   const [activeSunlightLayer, setActiveSunlightLayer] = useState<'direct' | 'diffuse' | 'duration'>('direct');
+  const activeSunlightLayerRef = useRef<'direct' | 'diffuse' | 'duration'>('direct');
   const directSunlightRef = useRef<FeatureLayer | null>(null);
   const diffuseSunlightRef = useRef<FeatureLayer | null>(null);
   const durationSunlightRef = useRef<FeatureLayer | null>(null);
@@ -138,6 +140,7 @@ function MainApp() {
     }
     
     setActiveSunlightLayer(layerType);
+    activeSunlightLayerRef.current = layerType; // Update the ref too
   };
 
   const createWidget = (widgetId: string) => {
@@ -151,27 +154,33 @@ function MainApp() {
           panel.style.width = "320px";
           panel.style.maxHeight = "400px";
           
-          panel.innerHTML = `
+            panel.innerHTML = `
             <div style="padding: 16px;">
               <calcite-segmented-control id="sunlight-control" width="full" style="margin-bottom: 16px;">
-                <calcite-segmented-control-item value="direct" checked>Direct</calcite-segmented-control-item>
-                <calcite-segmented-control-item value="diffuse">Diffuse</calcite-segmented-control-item>
-                <calcite-segmented-control-item value="duration">Duration</calcite-segmented-control-item>
+              <calcite-segmented-control-item value="direct" checked>Direct</calcite-segmented-control-item>
+              <calcite-segmented-control-item value="diffuse">Diffuse</calcite-segmented-control-item>
+              <calcite-segmented-control-item value="duration">Duration</calcite-segmented-control-item>
               </calcite-segmented-control>
               
               <div id="layer-info" style="font-size: 13px; color: var(--calcite-color-text-2); line-height: 1.4;">
-                <div id="direct-info">
-                  <strong>Direct Sunlight:</strong> Areas that receive unobstructed sunlight throughout the day. These areas have the highest solar irradiance.
-                </div>
-                <div id="diffuse-info" style="display: none;">
-                  <strong>Diffuse Sunlight:</strong> Areas that receive scattered or indirect sunlight due to obstructions like buildings, trees, or terrain. These areas have lower solar irradiance but still receive some light throughout the day.
-                </div>
-                <div id="duration-info" style="display: none;">
-                  <strong>Duration:</strong> Shows the amount of time each location receives direct sunlight throughout the day. Darker areas indicate longer sunlight exposure duration.
-                </div>
+              <div id="direct-info">
+              <strong>Direct Sunlight:</strong> Areas that receive unobstructed sunlight throughout the day. These areas have the highest solar irradiance.<br/>
+              <img src="/static/direct.png" alt="Direct Sunlight Legend" style="width: 80%; margin: 8px 0;"/>
+              <div><em>Values are in kWh/m² (kilowatt-hours per square meter). Values higher than 460,000 are considered unhealthy.</em></div>
+              </div>
+              <div id="diffuse-info" style="display: none;">
+              <strong>Diffuse Sunlight:</strong> Areas that receive scattered or indirect sunlight due to obstructions like buildings, trees, or terrain. These areas have lower solar irradiance but still receive some light throughout the day.<br/>
+              <img src="/static/diffuse.png" alt="Diffuse Sunlight Legend" style="width: 80%; margin: 8px 0;"/>
+              <div><em>Values are in kWh/m² (kilowatt-hours per square meter). Values higher than 460,000 are considered unhealthy.</em></div>
+              </div>
+              <div id="duration-info" style="display: none;">
+              <strong>Duration:</strong> Shows the amount of time each location receives direct sunlight throughout the day. Darker areas indicate longer sunlight exposure duration.<br/>
+              <img src="/static/duration.png" alt="Duration Legend" style="width: 80%; margin: 8px 0;"/>
+              <div><em>Hours of sunlight in 2025 (projected).</em></div>
+              </div>
               </div>
             </div>
-          `;
+            `;
           
           const segmentedControl = panel.querySelector('#sunlight-control') as any;
           const directInfo = panel.querySelector('#direct-info') as HTMLElement;
@@ -378,12 +387,123 @@ function MainApp() {
 
     viewRef.current = view;
 
+    view.on("click", (event: any) => {
+      const currentGeolocation = event.mapPoint;
+      console.log("Clicked location:", currentGeolocation.latitude, currentGeolocation.longitude);
+      const weatherData = getWeather({ lat: currentGeolocation.latitude, lon: currentGeolocation.longitude });
+      weatherData.then(data => {
+        if (data && data.properties && data.properties.periods && data.properties.periods.length > 0) {
+          const nwsPeriod = data.properties.periods[0];
+          applyNWSWeatherToScene(nwsPeriod, view);
+
+          const showSunlightValue = async () => {
+            let layer: FeatureLayer | null = null;
+            let label = "";
+            switch (activeSunlightLayerRef.current) { // Use ref instead of state
+              case "direct":
+                layer = directSunlightRef.current;
+                label = "Direct Sunlight";
+                break;
+              case "diffuse":
+                layer = diffuseSunlightRef.current;
+                label = "Diffuse Sunlight";
+                break;
+              case "duration":
+                layer = durationSunlightRef.current;
+                label = "Sunlight Duration";
+                break;
+            }
+            if (!layer) return;
+
+            try {
+              // First, let's check the layer's fields to understand the structure
+              await layer.load();
+              console.log("Layer fields:", layer.fields);
+              console.log("Layer renderer:", layer.renderer);
+              
+              // Query the feature at the clicked location
+              const query = layer.createQuery();
+              query.geometry = event.mapPoint;
+              query.spatialRelationship = "intersects";
+              query.returnGeometry = false;
+              query.outFields = ["*"]; // Get all fields
+
+              const results = await layer.queryFeatures(query);
+              console.log("Query results:", results);
+              
+              if (results.features.length > 0) {
+                const feature = results.features[0];
+                console.log("Feature attributes:", feature.attributes);
+                
+                // Let's display all attributes for debugging
+                const attributesList = Object.entries(feature.attributes)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join('<br>');
+                
+                // Show a popup with all attributes
+                view.popup?.open({
+                  title: `${label} - Debug Info`,
+                  content: `<div><strong>All Attributes:</strong><br>${attributesList}</div>`,
+                  location: event.mapPoint
+                });
+              } else {
+                view.popup?.open({
+                  title: label,
+                  content: "No data at this location.",
+                  location: event.mapPoint
+                });
+              }
+            } catch (error) {
+              console.error("Error querying layer:", error);
+              view.popup?.open({
+                title: "Error",
+                content: `Error querying layer: ${error}`,
+                location: event.mapPoint
+              });
+            }
+          };
+          showSunlightValue();
+        } else {
+          console.warn("No valid weather periods found in the response.");
+        }
+      }).catch(error => {
+        console.error("Error fetching or applying weather data:", error);
+      });
+    });
+
     view.when(() => {
       // Create and show the default Sunlight panel
       createWidget('sunlight');
       if (sunlightPanelRef.current) {
         view.ui.add(sunlightPanelRef.current, "top-right");
       }
+
+      // Add Search widget to top-left
+      const searchWidget = new Search({
+        view: view
+      });
+      
+      // Listen for search completion to update view geolocation
+      searchWidget.on("search-complete", (event) => {
+        if (event.results && event.results.length > 0) {
+          const firstResult = event.results[0];
+          if (firstResult.results && firstResult.results.length > 0) {
+            const result = firstResult.results[0];
+            if (result.extent && result.extent.center) {
+              const center = result.extent.center;
+              if (center.latitude != null && center.longitude != null) {
+                setViewGeolocation({
+                  lat: center.latitude,
+                  lon: center.longitude
+                });
+                console.log("Search completed, updated geolocation to:", center.latitude, center.longitude);
+              }
+            }
+          }
+        }
+      });
+      
+      view.ui.add(searchWidget, "bottom-left");
 
       console.log("WebScene spatial reference:", view.spatialReference);
 
