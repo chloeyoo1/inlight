@@ -532,10 +532,9 @@ function App() {
     }
   };
 
-  const handleDatetimeChange = (event: any) => {
-    const localDateTimeString = event.target.value;
-    setDatetimeValue(localDateTimeString); // Update the state
-    const utcDate = convertLocalInputToUTC(localDateTimeString);
+  useEffect(() => {
+    console.log("Datetime input changed:", datetimeValue);
+    const utcDate = convertLocalInputToUTC(datetimeValue);
     
     if (viewRef.current) {
       viewRef.current.environment.lighting = {
@@ -543,9 +542,9 @@ function App() {
         date: utcDate,
       };
 
-      console.log("Lighting date updated to UTC:", utcDate, "from local input:", localDateTimeString);
+      console.log("Lighting date updated to UTC:", utcDate, "from local input:", utcDate.toISOString());
     }
-  };
+  }, [datetimeValue]);
 
   useEffect(() => {
     if (viewRef && viewGeolocation) {
@@ -634,42 +633,44 @@ function App() {
                 </calcite-button>
               ))}
             </div>
+
+            <input
+              type="datetime-local"
+              value={datetimeValue}
+              onChange={(e) => setDatetimeValue(e.target.value)}
+              className="w-full"
+            />
           </div>
 
           {/* Model Selector */}
           <PresetModels onSelect={handleSelectPremadeModel} />
 
-          {/* Upload Section */}
-          <div className="flex flex-col gap-3">
-            <calcite-button 
-              onClick={handleImportModel}
-              disabled={isUploading}
-              appearance="solid"
-              width="full"
-            >
-              {isUploading ? 'Uploading...' : 'Import Model'}
-            </calcite-button>
-            <calcite-input 
-              type="datetime-local" 
-              value={datetimeValue}
-              onCalciteInputInput={handleDatetimeChange}
-              className="w-full"
-            />
-          </div>
-
-          {/* Error Display */}
-          {uploadError && (
-            <calcite-notice open kind="danger">
-              <div slot="title">Upload Error</div>
-              <div slot="message">{uploadError}</div>
-            </calcite-notice>
-          )}
-
           {/* Models List */}
           <div className="flex-1">
             <h3 className="text-base font-semibold mb-3 m-0">
-              Available Models ({models.length})
+              Your Models ({models.length})
             </h3>
+
+            {/* Upload Section */}
+            <div className="flex flex-col gap-3 mb-5">
+              <calcite-button 
+                onClick={handleImportModel}
+                disabled={isUploading}
+                appearance="solid"
+                width="full"
+              >
+                {isUploading ? 'Uploading...' : 'Import Model'}
+              </calcite-button>
+            </div>
+
+            {/* Error Display */}
+            {uploadError && (
+              <calcite-notice open kind="danger">
+                <div slot="title">Upload Error</div>
+                <div slot="message">{uploadError}</div>
+              </calcite-notice>
+            )}
+
             {models.length === 0 ? (
               <calcite-notice open kind="info">
                 <div slot="title">No Models</div>
