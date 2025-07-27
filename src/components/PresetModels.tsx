@@ -1,6 +1,9 @@
 // ModelSelector.tsx
 import React from "react";
 
+import "@esri/calcite-components/dist/components/calcite-card";
+import "@esri/calcite-components/dist/components/calcite-button";
+
 interface PresetModelProps {
   onSelect: (url: string, height?: number) => void;
 }
@@ -21,29 +24,29 @@ const modelOptions = [
 export const PresetModels: React.FC<PresetModelProps> = ({ onSelect }) => {
   return (
     <div>
-      <h3 className="font-semibold mb-2">Preset Models ({modelOptions.length})</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+      <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600' }}>
+        Preset Models ({modelOptions.length})
+      </h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
         {modelOptions.map((model) => (
-          <div 
-            key={model.url} 
-            className="border rounded p-2 bg-white hover:bg-gray-50 cursor-pointer"
-          >
-            <div className="flex justify-between items-center">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" title={model.name}>
-                  {model.name}
-                </p>
-              </div>
-              <div className="ml-2">
-                <button
-                  onClick={() => onSelect(model.url, model.height)}
-                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                >
-                  Use
-                </button>
-              </div>
+          <calcite-card key={model.url}>
+            <div slot="title" style={{ fontSize: '14px', fontWeight: '500' }}>
+              {model.name}
             </div>
-          </div>
+            <div slot="subtitle" style={{ fontSize: '12px', color: 'var(--calcite-color-text-3)' }}>
+              Height: {model.height}m
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <calcite-button
+                onClick={() => onSelect(model.url, model.height)}
+                appearance="solid"
+                scale="s"
+                width="full"
+              >
+                Use Model
+              </calcite-button>
+            </div>
+          </calcite-card>
         ))}
       </div>
     </div>

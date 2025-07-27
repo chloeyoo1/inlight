@@ -4,11 +4,18 @@ import './App.css';
 import "@esri/calcite-components";
 import "@esri/calcite-components/dist/components/calcite-button";
 import "@esri/calcite-components/dist/components/calcite-slider";
+import "@esri/calcite-components/dist/components/calcite-panel";
+import "@esri/calcite-components/dist/components/calcite-segmented-control";
+import "@esri/calcite-components/dist/components/calcite-segmented-control-item";
+import "@esri/calcite-components/dist/components/calcite-card";
+import "@esri/calcite-components/dist/components/calcite-notice";
+import "@esri/calcite-components/dist/components/calcite-input";
+import "@esri/calcite-components/dist/components/calcite-input-date-picker";
+import "@esri/calcite-components/dist/components/calcite-label";
 
 import esriConfig from '@arcgis/core/config';
 import WebScene from '@arcgis/core/WebScene';
 import SceneView from '@arcgis/core/views/SceneView';
-import LayerList from '@arcgis/core/widgets/LayerList';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import TileLayer from '@arcgis/core/layers/TileLayer';
 import MapImageLayer from '@arcgis/core/layers/MapImageLayer';
@@ -34,18 +41,24 @@ function App() {
   const sketchVMRef = useRef<SketchViewModel | null>(null);
   
   // Widget refs
-  const layerListRef = useRef<LayerList | null>(null);
+  const sunlightPanelRef = useRef<any>(null);
   const weatherRef = useRef<Weather | null>(null);
   const shadowCastRef = useRef<ShadowCast | null>(null);
   const daylightRef = useRef<Daylight | null>(null);
   
   // Active widget state
-  const [activeWidget, setActiveWidget] = useState<string>('layerlist');
+  const [activeWidget, setActiveWidget] = useState<string>('sunlight');
+  
+  // Sunlight layer state
+  const [activeSunlightLayer, setActiveSunlightLayer] = useState<'direct' | 'diffuse' | 'duration'>('direct');
+  const directSunlightRef = useRef<FeatureLayer | null>(null);
+  const diffuseSunlightRef = useRef<FeatureLayer | null>(null);
+  const durationSunlightRef = useRef<FeatureLayer | null>(null);
 
   const [viewGeolocation, setViewGeolocation] = useState<Geolocation | null>(null);
 
   const widgets = [
-    { id: 'layerlist', name: 'Layer List', ref: layerListRef },
+    { id: 'sunlight', name: 'Sunlight Layers', ref: sunlightPanelRef },
     { id: 'weather', name: 'Weather', ref: weatherRef },
     { id: 'shadowcast', name: 'Shadow Cast', ref: shadowCastRef },
     { id: 'daylight', name: 'Daylight', ref: daylightRef }
@@ -55,12 +68,20 @@ function App() {
     if (!viewRef.current) return;
     
     try {
+      // Handle sunlight layer visibility when switching away from sunlight panel
+      if (activeWidget === 'sunlight' && widgetId !== 'sunlight') {
+        // Hide all sunlight layers when switching away from sunlight panel
+        if (directSunlightRef.current) directSunlightRef.current.visible = false;
+        if (diffuseSunlightRef.current) diffuseSunlightRef.current.visible = false;
+        if (durationSunlightRef.current) durationSunlightRef.current.visible = false;
+      }
+      
       // Remove all current widgets
       widgets.forEach(widget => {
         if (widget.ref?.current) {
           viewRef.current!.ui.remove(widget.ref.current);
-          // Destroy widget to free memory (except the one we're switching to)
-          if (widget.id !== widgetId && widget.ref.current.destroy) {
+          // Destroy widget to free memory (except the one we're switching to and except HTML elements)
+          if (widget.id !== widgetId && widget.ref.current && 'destroy' in widget.ref.current && typeof widget.ref.current.destroy === 'function') {
             widget.ref.current.destroy();
             widget.ref.current = null;
           }
@@ -82,6 +103,12 @@ function App() {
         }
       }
       
+      // Handle sunlight layer visibility when switching back to sunlight panel
+      if (widgetId === 'sunlight') {
+        // Show the previously selected sunlight layer when switching back to sunlight panel
+        switchSunlightLayer(activeSunlightLayer);
+      }
+      
       setActiveWidget(widgetId);
     } catch (error) {
       console.warn('Widget switching error:', error);
@@ -89,58 +116,95 @@ function App() {
     }
   };
 
+  const switchSunlightLayer = (layerType: 'direct' | 'diffuse' | 'duration') => {
+    if (!directSunlightRef.current || !diffuseSunlightRef.current || !durationSunlightRef.current) return;
+    
+    // Hide all layers first
+    directSunlightRef.current.visible = false;
+    diffuseSunlightRef.current.visible = false;
+    durationSunlightRef.current.visible = false;
+    
+    // Show selected layer
+    switch (layerType) {
+      case 'direct':
+        directSunlightRef.current.visible = true;
+        break;
+      case 'diffuse':
+        diffuseSunlightRef.current.visible = true;
+        break;
+      case 'duration':
+        durationSunlightRef.current.visible = true;
+        break;
+    }
+    
+    setActiveSunlightLayer(layerType);
+  };
+
   const createWidget = (widgetId: string) => {
     if (!viewRef.current) return;
 
     switch (widgetId) {
-      case 'layerlist':
-        if (!layerListRef.current) {
-          const layerList = new LayerList({
-            view: viewRef.current,
-            listItemCreatedFunction: (event) => {
-              const item = event.item;
-              if (item.layer && item.layer.type !== "group") {
-                // Add opacity slider for each layer
-                const slider = document.createElement("calcite-slider");
-                slider.setAttribute("min", "0");
-                slider.setAttribute("max", "1");
-                slider.setAttribute("step", "0.1");
-                slider.setAttribute("value", item.layer.opacity.toString());
-                slider.setAttribute("label-handles", "");
-                slider.setAttribute("label-ticks", "");
-                slider.setAttribute("ticks", "10");
-                slider.style.width = "100%";
-                slider.style.marginTop = "8px";
-                
-                // Create a container for the slider
-                const sliderContainer = document.createElement("div");
-                sliderContainer.style.padding = "0 10px";
-                
-                const label = document.createElement("label");
-                label.textContent = "Opacity";
-                label.style.fontSize = "12px";
-                label.style.color = "#6e6e6e";
-                label.style.display = "block";
-                label.style.marginBottom = "4px";
-                
-                sliderContainer.appendChild(label);
-                sliderContainer.appendChild(slider);
-                
-                // Add event listener for opacity changes
-                slider.addEventListener("calciteSliderChange", (e: any) => {
-                  if (item.layer) {
-                    item.layer.opacity = parseFloat(e.target.value);
-                  }
-                });
-                
-                item.panel = {
-                  content: sliderContainer,
-                  title: "Change layer opacity"
-                };
-              }
+      case 'sunlight':
+        if (!sunlightPanelRef.current) {
+          const panel = document.createElement("calcite-panel");
+          panel.setAttribute("heading", "Sunlight Analysis");
+          panel.style.width = "320px";
+          panel.style.maxHeight = "400px";
+          
+          panel.innerHTML = `
+            <div style="padding: 16px;">
+              <calcite-segmented-control id="sunlight-control" width="full" style="margin-bottom: 16px;">
+                <calcite-segmented-control-item value="direct" checked>Direct</calcite-segmented-control-item>
+                <calcite-segmented-control-item value="diffuse">Diffuse</calcite-segmented-control-item>
+                <calcite-segmented-control-item value="duration">Duration</calcite-segmented-control-item>
+              </calcite-segmented-control>
+              
+              <div id="layer-info" style="font-size: 13px; color: var(--calcite-color-text-2); line-height: 1.4;">
+                <div id="direct-info">
+                  <strong>Direct Sunlight:</strong> Areas that receive unobstructed sunlight throughout the day. These areas have the highest solar irradiance.
+                </div>
+                <div id="diffuse-info" style="display: none;">
+                  <strong>Diffuse Sunlight:</strong> Areas that receive scattered or indirect sunlight due to obstructions like buildings, trees, or terrain. These areas have lower solar irradiance but still receive some light throughout the day.
+                </div>
+                <div id="duration-info" style="display: none;">
+                  <strong>Duration:</strong> Shows the amount of time each location receives direct sunlight throughout the day. Darker areas indicate longer sunlight exposure duration.
+                </div>
+              </div>
+            </div>
+          `;
+          
+          const segmentedControl = panel.querySelector('#sunlight-control') as any;
+          const directInfo = panel.querySelector('#direct-info') as HTMLElement;
+          const diffuseInfo = panel.querySelector('#diffuse-info') as HTMLElement;
+          const durationInfo = panel.querySelector('#duration-info') as HTMLElement;
+          
+          const updateInfo = (value: string) => {
+            // Hide all info sections
+            directInfo.style.display = 'none';
+            diffuseInfo.style.display = 'none';
+            durationInfo.style.display = 'none';
+            
+            // Show the selected info section
+            switch (value) {
+              case 'direct':
+                directInfo.style.display = 'block';
+                break;
+              case 'diffuse':
+                diffuseInfo.style.display = 'block';
+                break;
+              case 'duration':
+                durationInfo.style.display = 'block';
+                break;
             }
+          };
+          
+          segmentedControl.addEventListener('calciteSegmentedControlChange', (event: any) => {
+            const selectedValue = event.target.selectedItem.value;
+            switchSunlightLayer(selectedValue as 'direct' | 'diffuse' | 'duration');
+            updateInfo(selectedValue);
           });
-          layerListRef.current = layerList;
+          
+          sunlightPanelRef.current = panel as any;
         }
         break;
       case 'weather':
@@ -171,6 +235,7 @@ function App() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [datetimeValue, setDatetimeValue] = useState(getCurrentLocalTimeISO());
 
   try {
     const { default: ARCGIS_API_KEY } = require('./key');
@@ -253,15 +318,33 @@ function App() {
     // });
     // webScene.add(recreationLayer);
 
-    const modelLayer = new GraphicsLayer();
-    webScene.add(modelLayer);
-
-    // Add the tile package hosted service
-    const tilePackageLayer = new FeatureLayer({
+    // Add the sunlight analysis layers
+    const directSunlight = new FeatureLayer({
       url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/direct_polygon_2/FeatureServer",
-      opacity: 0.8
+      opacity: 0.8,
+      title: "Direct Sunlight",
+      visible: true // Start with direct sunlight visible (since sunlight panel is default active)
     });
-    webScene.add(tilePackageLayer);
+    webScene.add(directSunlight);
+    directSunlightRef.current = directSunlight;
+
+    const diffuseSunlight = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/diffuse_polygon/FeatureServer",
+      opacity: 0.8,
+      title: "Diffuse Sunlight",
+      visible: false // Start with diffuse sunlight hidden
+    });
+    webScene.add(diffuseSunlight);
+    diffuseSunlightRef.current = diffuseSunlight;
+
+    const durationSunlight = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/duration_polygon/FeatureServer",
+      opacity: 0.8,
+      title: "Sunlight Duration",
+      visible: false // Start with duration sunlight hidden
+    });
+    webScene.add(durationSunlight);
+    durationSunlightRef.current = durationSunlight;
   
     sceneRef.current = webScene;
 
@@ -281,7 +364,8 @@ function App() {
     // Don't create widgets here anymore - they'll be created on-demand
 
     const graphicsLayer = new GraphicsLayer({
-      elevationInfo: { mode: "relative-to-ground" }
+      elevationInfo: { mode: "relative-to-ground" },
+      title: "Custom Models"
     });
     view.map?.add(graphicsLayer);
 
@@ -295,10 +379,10 @@ function App() {
     viewRef.current = view;
 
     view.when(() => {
-      // Create and show the default LayerList widget
-      createWidget('layerlist');
-      if (layerListRef.current) {
-        view.ui.add(layerListRef.current, "top-right");
+      // Create and show the default Sunlight panel
+      createWidget('sunlight');
+      if (sunlightPanelRef.current) {
+        view.ui.add(sunlightPanelRef.current, "top-right");
       }
 
       console.log("WebScene spatial reference:", view.spatialReference);
@@ -448,8 +532,9 @@ function App() {
     }
   };
 
-  const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDatetimeChange = (event: any) => {
     const localDateTimeString = event.target.value;
+    setDatetimeValue(localDateTimeString); // Update the state
     const utcDate = convertLocalInputToUTC(localDateTimeString);
     
     if (viewRef.current) {
@@ -518,28 +603,35 @@ function App() {
   };
 
   return (
-    <div className="App flex flex-col h-screen">
-      <div id="viewDiv" className="flex-1"></div>
-      <div className="h-[300px] bg-gray-100 overflow-auto p-4">
-        <div className="flex flex-col gap-4">
+    <div className="App flex h-screen">
+      <div className="bg-white border-r border-gray-200 flex-shrink-0 shadow-sm flex flex-col" style={{ width: '320px' }}>
+        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900 m-0">Controls</h2>
+        </div>
+        <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
           
           {/* Widget Switcher */}
-          <div className="mb-4 text-left">
-            <button onClick={getMapViewLocation}>Update Location (for weather service)</button> <br />
-            <button onClick={runGeoprocessingTask}>Test Geoprocessing Execution</button> <br />
-            <div className="flex flex-wrap gap-2 mb-4 justify-start">
+          <div className="space-y-3">
+            <div>
+              <calcite-button onClick={getMapViewLocation} width="full" appearance="outline">
+                Update Location
+              </calcite-button>
+            </div>
+            <div>
+              <calcite-button onClick={runGeoprocessingTask} width="full" appearance="outline">
+                Test Geoprocessing
+              </calcite-button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               {widgets.map(widget => (
-                <button
+                <calcite-button
                   key={widget.id}
                   onClick={() => switchWidget(widget.id)}
-                  className={`px-3 py-1 rounded text-sm ${
-                    activeWidget === widget.id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  appearance={activeWidget === widget.id ? 'solid' : 'outline'}
+                  scale="s"
                 >
                   {widget.name}
-                </button>
+                </calcite-button>
               ))}
             </div>
           </div>
@@ -548,75 +640,78 @@ function App() {
           <PresetModels onSelect={handleSelectPremadeModel} />
 
           {/* Upload Section */}
-          <div className="flex items-center gap-4">
-            <button 
+          <div className="flex flex-col gap-3">
+            <calcite-button 
               onClick={handleImportModel}
               disabled={isUploading}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-300"
+              appearance="solid"
+              width="full"
             >
-              {isUploading ? 'Uploading...' : 'Import Your Model'}
-            </button>
-            <input 
+              {isUploading ? 'Uploading...' : 'Import Model'}
+            </calcite-button>
+            <calcite-input 
               type="datetime-local" 
-              value={getCurrentLocalTimeISO()}
-              onChange={handleDatetimeChange}
-              className="border rounded px-2 py-1"
+              value={datetimeValue}
+              onCalciteInputInput={handleDatetimeChange}
+              className="w-full"
             />
           </div>
 
           {/* Error Display */}
           {uploadError && (
-            <div className="text-red-600 bg-red-100 p-2 rounded">
-              Error: {uploadError}
-            </div>
+            <calcite-notice open kind="danger">
+              <div slot="title">Upload Error</div>
+              <div slot="message">{uploadError}</div>
+            </calcite-notice>
           )}
 
           {/* Models List */}
-          <div>
-            <h3 className="font-semibold mb-2">Available Models ({models.length})</h3>
+          <div className="flex-1">
+            <h3 className="text-base font-semibold mb-3 m-0">
+              Available Models ({models.length})
+            </h3>
             {models.length === 0 ? (
-              <p className="text-gray-500">No models uploaded yet. Upload a model to get started.</p>
+              <calcite-notice open kind="info">
+                <div slot="title">No Models</div>
+                <div slot="message">Upload a model to get started.</div>
+              </calcite-notice>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="flex flex-col gap-3">
                 {models.map((model) => (
-                  <div 
-                    key={model.filename} 
-                    className="border rounded p-2 bg-white hover:bg-gray-50 cursor-pointer"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate" title={model.originalName}>
-                          {model.originalName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {(model.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(model.uploadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex gap-1 ml-2">
-                        <button
-                          onClick={() => handleSelectModel(model)}
-                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                        >
-                          Use
-                        </button>
-                        <button
-                          onClick={() => handleDeleteModel(model.filename)}
-                          className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                  <calcite-card key={model.filename}>
+                    <div slot="title" className="text-sm font-medium truncate" title={model.originalName}>
+                      {model.originalName}
                     </div>
-                  </div>
+                    <div slot="subtitle" className="text-xs text-gray-500">
+                      {(model.size / 1024 / 1024).toFixed(2)} MB • {new Date(model.uploadedAt).toLocaleDateString()}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <calcite-button
+                        onClick={() => handleSelectModel(model)}
+                        appearance="solid"
+                        scale="s"
+                        width="half"
+                      >
+                        Use
+                      </calcite-button>
+                      <calcite-button
+                        onClick={() => handleDeleteModel(model.filename)}
+                        appearance="outline"
+                        kind="danger"
+                        scale="s"
+                        width="half"
+                      >
+                        Delete
+                      </calcite-button>
+                    </div>
+                  </calcite-card>
                 ))}
               </div>
             )}
           </div>
         </div>
       </div>
+      <div id="viewDiv" className="flex-1 h-full"></div>
     </div>
   );
 }
