@@ -3,9 +3,9 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 2rem;
+  justify-content: space-between;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
 }
 
@@ -13,12 +13,10 @@
   max-width: 1200px;
   width: 100%;
   background: white;
-  border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  max-height: 100%;
 }
 
 .landing-hero {
@@ -175,8 +173,6 @@
 .cta-section {
   text-align: center;
   padding: 2rem;
-  background: #f8f9fa;
-  border-top: 1px solid #e9ecef;
 }
 
 .cta-button {
@@ -207,11 +203,13 @@
 }
 
 .landing-footer {
+  width: 100%;
   text-align: center;
   padding: 1.5rem;
   background: #2c3e50;
   color: #bdc3c7;
   font-size: 0.875rem;
+  margin-top: auto;
 }
 
 .landing-footer p {
