@@ -104,7 +104,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Get Started Now
+                Launch App
               </button>
             </div>
           </div>
@@ -115,6 +115,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       <footer className="landing-footer">
         <p><strong>Powered by</strong> ArcGIS Maps SDK for JavaScript</p>
         <p>Built with React & TypeScript • Professional 3D Visualization</p>
+        <p><strong>Made by</strong> Arraydiant from ESRI</p>
       </footer>
     </div>
   );
