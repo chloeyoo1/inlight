@@ -1,20 +1,22 @@
-/* Esri Calcite-inspired Landing Page */
+/* Calcite-inspired Landing Page */
 .landing-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
+  background: var(--calcite-color-background);
   display: flex;
   flex-direction: column;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  font-family: var(--calcite-font-family);
+  color: var(--calcite-color-text-1);
 }
 
 .landing-header {
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--calcite-color-foreground-1);
+  box-shadow: var(--calcite-shadow-1);
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   z-index: 10;
+  border-bottom: 1px solid var(--calcite-color-border-1);
 }
 
 .logo-section {
@@ -26,7 +28,7 @@
 .logo-icon {
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 8px;
+  border-radius: var(--calcite-border-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -37,13 +39,13 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--calcite-border-radius);
 }
 
 .logo-text {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--calcite-color-text-1);
   letter-spacing: -0.02em;
 }
 
@@ -53,56 +55,29 @@
   gap: 1rem;
 }
 
-.header-button {
-  background: linear-gradient(135deg, #0066cc, #004499);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-button:hover {
-  background: linear-gradient(135deg, #0052a3, #003d7a);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.4);
-}
-
-.header-button svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
 .landing-main {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  border-radius: 8px;
 }
 
 .landing-container {
   max-width: 1200px;
   width: 100%;
-  background: white;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: var(--calcite-color-foreground-1);
+  box-shadow: var(--calcite-shadow-2);
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-radius: 8px;
+  border-radius: var(--calcite-border-radius);
+  border: 1px solid var(--calcite-color-border-1);
 }
 
 .landing-hero {
-  background: linear-gradient(135deg, #0066cc 0%, #004499 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--calcite-color-brand) 0%, var(--calcite-color-brand-hover) 100%);
+  color: var(--calcite-color-foreground-1);
   padding: 3rem 2rem;
   display: flex;
   flex-direction: column;
@@ -132,6 +107,7 @@
   font-weight: 700;
   margin-bottom: 1rem;
   letter-spacing: -0.02em;
+  color: var(--calcite-color-foreground-1);
 }
 
 .landing-subtitle {
@@ -139,6 +115,7 @@
   line-height: 1.6;
   margin-bottom: 2rem;
   opacity: 0.9;
+  color: var(--calcite-color-foreground-1);
 }
 
 .hero-features {
@@ -152,11 +129,12 @@
   align-items: center;
   margin-bottom: 1rem;
   font-size: 0.95rem;
+  color: var(--calcite-color-foreground-1);
 }
 
 .hero-features li::before {
   content: '✓';
-  color: #00d4aa;
+  color: var(--calcite-color-success);
   font-weight: bold;
   margin-right: 0.75rem;
   font-size: 1.1rem;
@@ -167,6 +145,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  background: var(--calcite-color-foreground-1);
 }
 
 .content-section {
@@ -180,7 +159,7 @@
 .section-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--calcite-color-text-1);
   margin-bottom: 1rem;
 }
 
@@ -189,108 +168,57 @@
   gap: 1.5rem;
 }
 
-.feature-card {
+.feature-header {
   display: flex;
-  align-items: flex-start;
-  padding: 1.25rem;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
-  transition: all 0.2s ease;
-}
-
-.feature-card:hover {
-  background: #e9ecef;
-  border-color: #0066cc;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.15);
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .feature-icon {
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 6px;
+  border-radius: var(--calcite-border-radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 1rem;
   flex-shrink: 0;
 }
 
+
 .feature-icon.upload {
-  background: linear-gradient(135deg, #0066cc, #004499);
-  color: white;
+  /* background: linear-gradient(135deg, #0066cc, #004499); */
+  color: rgb(0, 0, 0);
 }
 
 .feature-icon.visualize {
-  background: linear-gradient(135deg, #00d4aa, #00b894);
-  color: white;
+  /* background: linear-gradient(135deg, #00d4aa, #00b894); */
+  color: rgb(0, 0, 0);
 }
 
 .feature-icon.weather {
-  background: linear-gradient(135deg, #f39c12, #e67e22);
-  color: white;
+  /* background: linear-gradient(135deg, #f39c12, #e67e22); */
+  color: rgb(0, 0, 0);
 }
-
 .feature-icon svg {
   width: 1.25rem;
   height: 1.25rem;
 }
 
-.feature-content h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 0.5rem;
-}
-
-.feature-content p {
-  font-size: 0.875rem;
-  color: #6c757d;
-  line-height: 1.5;
-  margin: 0;
-}
-
 .cta-section {
   text-align: center;
   padding: 2rem;
-}
-
-.cta-button {
-  background: linear-gradient(135deg, #0066cc, #004499);
-  color: white;
-  padding: 1rem 2.5rem;
-  border-radius: 6px;
-  font-size: 1.125rem;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.cta-button:hover {
-  background: linear-gradient(135deg, #0052a3, #003d7a);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 102, 204, 0.4);
-}
-
-.cta-button svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  background: var(--calcite-color-foreground-1);
 }
 
 .landing-footer {
   width: 100%;
   text-align: center;
   padding: 1.5rem;
-  background: #2c3e50;
-  color: #bdc3c7;
+  background: var(--calcite-color-foreground-2);
+  color: var(--calcite-color-text-2);
   font-size: 0.875rem;
   margin-top: auto;
+  border-top: 1px solid var(--calcite-color-border-1);
 }
 
 .landing-footer p {
@@ -298,7 +226,7 @@
 }
 
 .landing-footer strong {
-  color: #ecf0f1;
+  color: var(--calcite-color-text-1);
 }
 
 /* Responsive Design */
@@ -309,11 +237,6 @@
   
   .logo-text {
     font-size: 1.25rem;
-  }
-  
-  .header-button {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
   }
   
   .landing-container {
@@ -349,10 +272,6 @@
   
   .landing-title {
     font-size: 1.75rem;
-  }
-  
-  .feature-card {
-    padding: 1rem;
   }
   
   .header-cta {

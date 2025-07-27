@@ -36,6 +36,21 @@ import { ModelService, ModelInfo } from './services/modelService';
 import { getCurrentUTCTime, getCurrentLocalTimeISO, convertLocalInputToUTC, convertUTCToLocalInput } from './utils/time_utils';
 import PresetModels from './components/PresetModels';
 
+// TypeScript declarations for Calcite components
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'calcite-button': any;
+      'calcite-notice': any;
+      'calcite-card': any;
+      'calcite-input-date-picker': any;
+      'calcite-panel': any;
+      'calcite-segmented-control': any;
+      'calcite-segmented-control-item': any;
+    }
+  }
+}
+
 function MainApp() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
@@ -525,16 +540,18 @@ function MainApp() {
         </div>
         
         <div className="header-cta">
-          <button
+          <calcite-button
             onClick={handleImportModel}
             disabled={isUploading}
-            className="header-button"
+            appearance="solid"
+            kind="brand"
+            scale="m"
           >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <svg slot="icon-start" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
             {isUploading ? 'Uploading...' : 'Import Model'}
-          </button>
+          </calcite-button>
         </div>
       </header>
 
@@ -549,31 +566,27 @@ function MainApp() {
             {/* Widget Switcher */}
             <div className="space-y-3">
               <div>
-                <button onClick={getMapViewLocation} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <calcite-button onClick={getMapViewLocation} width="full" appearance="outline">
                   Update Location
-                </button>
+                </calcite-button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {widgets.map(widget => (
-                  <button
+                  <calcite-button
                     key={widget.id}
                     onClick={() => switchWidget(widget.id)}
-                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      activeWidget === widget.id
-                        ? 'bg-blue-600 text-white'
-                        : 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                    }`}
+                    appearance={activeWidget === widget.id ? 'solid' : 'outline'}
+                    scale="s"
                   >
                     {widget.name}
-                  </button>
+                  </calcite-button>
                 ))}
               </div>
 
-              <input
-                type="datetime-local"
+              <calcite-input-date-picker
                 value={datetimeValue}
-                onChange={(e) => setDatetimeValue(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                onCalciteInputDatePickerChange={(e: any) => setDatetimeValue(e.target.value)}
+                scale="s"
               />
             </div>
 
@@ -588,42 +601,47 @@ function MainApp() {
 
               {/* Error Display */}
               {uploadError && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-3">
-                  <div className="text-sm font-medium text-red-800">Upload Error</div>
-                  <div className="text-sm text-red-600">{uploadError}</div>
-                </div>
+                <calcite-notice open kind="danger">
+                  <div slot="title">Upload Error</div>
+                  <div slot="message">{uploadError}</div>
+                </calcite-notice>
               )}
 
               {models.length === 0 ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                  <div className="text-sm font-medium text-blue-800">No Models Yet</div>
-                  <div className="text-sm text-blue-600">Upload a model to get started.</div>
-                </div>
+                <calcite-notice open kind="info">
+                  <div slot="title">No Models Yet</div>
+                  <div slot="message">Upload a model to get started.</div>
+                </calcite-notice>
               ) : (
                 <div className="flex flex-col gap-3">
                   {models.map((model) => (
-                    <div key={model.filename} className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
-                      <div className="text-sm font-medium truncate" title={model.originalName}>
+                    <calcite-card key={model.filename}>
+                      <div slot="title" className="text-sm font-medium truncate" title={model.originalName}>
                         {model.originalName}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div slot="subtitle" className="text-xs text-gray-500">
                         {(model.size / 1024 / 1024).toFixed(2)} MB • {new Date(model.uploadedAt).toLocaleDateString()}
                       </div>
                       <div className="flex gap-2 mt-3">
-                        <button
+                        <calcite-button
                           onClick={() => handleSelectModel(model)}
-                          className="flex-1 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700"
+                          appearance="solid"
+                          scale="s"
+                          width="half"
                         >
                           Use
-                        </button>
-                        <button
+                        </calcite-button>
+                        <calcite-button
                           onClick={() => handleDeleteModel(model.filename)}
-                          className="flex-1 px-3 py-1 border border-red-300 text-red-700 text-xs font-medium rounded hover:bg-red-50"
+                          appearance="outline"
+                          kind="danger"
+                          scale="s"
+                          width="half"
                         >
                           Delete
-                        </button>
+                        </calcite-button>
                       </div>
-                    </div>
+                    </calcite-card>
                   ))}
                 </div>
               )}
