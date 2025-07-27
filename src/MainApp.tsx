@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
+import './MainApp.css';
+import logo from './img/logo192.png';
 
 import "@esri/calcite-components";
 import "@esri/calcite-components/dist/components/calcite-button";
@@ -32,7 +34,6 @@ import Search from '@arcgis/core/widgets/Search';
 
 import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/weather_utils';
 import { ModelService, ModelInfo } from './services/modelService';
-import { executeGeoprocessingTask } from './utils/geoproc_utils';
 import { getCurrentUTCTime, getCurrentLocalTimeISO, convertLocalInputToUTC, convertUTCToLocalInput } from './utils/time_utils';
 import PresetModels from './components/PresetModels';
 
@@ -260,73 +261,6 @@ function MainApp() {
       }
     });
 
-    // const recreationLayer = new FeatureLayer({
-    //   title: "Recreation",
-    //   url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
-    //   elevationInfo: {
-    //     mode: "absolute-height",
-    //   },
-    //   renderer: {
-    //     type: "unique-value", // autocasts as new UniqueValueRenderer()
-    //     field: "TYPE",
-    //     visualVariables: [
-    //       {
-    //         // size can be modified with the interactive handle
-    //         type: "size",
-    //         field: "SIZE",
-    //         axis: "height",
-    //         valueUnit: "meters",
-    //       },
-    //       {
-    //         // rotation can be modified with the interactive handle
-    //         type: "rotation",
-    //         field: "ROTATION",
-    //       },
-    //     ],
-    //     uniqueValueInfos: [
-    //       {
-    //         value: "1",
-    //         label: "Tree",
-    //         symbol: {
-    //           type: "point-3d", // autocasts as new PointSymbol3D()
-    //           symbolLayers: [
-    //             {
-    //               type: "object",
-    //               resource: {
-    //                 href: "/static/maple_tree.glb",
-    //               },
-    //             },
-    //           ],
-    //           styleOrigin: {
-    //             styleName: "EsriRecreationStyle",
-    //             name: "Tree",
-    //           },
-    //         },
-    //       },
-    //       {
-    //         value: "2",
-    //         label: "Swing",
-    //         symbol: {
-    //           type: "point-3d", // autocasts as new PointSymbol3D()
-    //           symbolLayers: [
-    //             {
-    //               type: "object",
-    //               resource: {
-    //                 href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
-    //               },
-    //             },
-    //           ],
-    //           styleOrigin: {
-    //             styleName: "EsriRecreationStyle",
-    //             name: "Swing",
-    //           },
-    //         },
-    //       },
-    //     ],
-    //   },
-    // });
-    // webScene.add(recreationLayer);
-
     // Add the sunlight analysis layers
     const directSunlight = new FeatureLayer({
       url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/direct_polygon_2/FeatureServer",
@@ -369,8 +303,6 @@ function MainApp() {
       },
       qualityProfile: "high",
     });
-
-    // Don't create widgets here anymore - they'll be created on-demand
 
     const graphicsLayer = new GraphicsLayer({
       elevationInfo: { mode: "relative-to-ground" },
@@ -506,7 +438,6 @@ function MainApp() {
       view.ui.add(searchWidget, "bottom-left");
 
       console.log("WebScene spatial reference:", view.spatialReference);
-
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
@@ -682,25 +613,6 @@ function MainApp() {
     }
   }, [viewGeolocation]);
 
-  const runGeoprocessingTask = async () => {
-    const results = await executeGeoprocessingTask({
-      "Time_configuration": "Whole year",
-      "Day_interval": 14,
-      "Hour_interval": 2,
-    });
-
-    // if (results.url) {
-    //   const gpLayer = new FeatureLayer({
-    //     url: results.url,
-    //     title: "Geoprocessing Result"
-    //   });
-    //   sceneRef.current?.add(gpLayer);
-    //   console.log("FeatureLayer added from geoprocessing result:", results.url);
-    // }
-    console.log("Geoprocessing task executed successfully:", results);
-    await results.load();
-  }
-
   const handleSelectPremadeModel = async (modelUrl: string, height?: number) => {
     if (sceneRef.current && sketchVMRef.current) {
       sketchVMRef.current.pointSymbol = {
@@ -722,117 +634,124 @@ function MainApp() {
   };
 
   return (
-    <div className="App flex h-screen">
-      <div className="bg-white border-r border-gray-200 flex-shrink-0 shadow-sm flex flex-col" style={{ width: '320px' }}>
-        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900 m-0">Controls</h2>
-        </div>
-        <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
-          
-          {/* Widget Switcher */}
-          <div className="space-y-3">
-            <div>
-              <calcite-button onClick={getMapViewLocation} width="full" appearance="outline">
-                Update Location
-              </calcite-button>
-            </div>
-            <div>
-              <calcite-button onClick={runGeoprocessingTask} width="full" appearance="outline">
-                Test Geoprocessing
-              </calcite-button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {widgets.map(widget => (
-                <calcite-button
-                  key={widget.id}
-                  onClick={() => switchWidget(widget.id)}
-                  appearance={activeWidget === widget.id ? 'solid' : 'outline'}
-                  scale="s"
-                >
-                  {widget.name}
-                </calcite-button>
-              ))}
-            </div>
-
-            <input
-              type="datetime-local"
-              value={datetimeValue}
-              onChange={(e) => setDatetimeValue(e.target.value)}
-              className="w-full"
-            />
+    <div className="main-app">
+      {/* Header Bar */}
+      <header className="main-header">
+        <div className="logo-section">
+          <div className="logo-icon">
+            <img src={logo} alt="Inlight Logo" className="logo-image" />
           </div>
+          <span className="logo-text">Inlight</span>
+        </div>
+        
+        <div className="header-cta">
+          <button
+            onClick={handleImportModel}
+            disabled={isUploading}
+            className="header-button"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            {isUploading ? 'Uploading...' : 'Import Model'}
+          </button>
+        </div>
+      </header>
 
-          {/* Model Selector */}
-          <PresetModels onSelect={handleSelectPremadeModel} />
-
-          {/* Models List */}
-          <div className="flex-1">
-            <h3 className="text-base font-semibold mb-3 m-0">
-              Your Models ({models.length})
-            </h3>
-
-            {/* Upload Section */}
-            <div className="flex flex-col gap-3 mb-5">
-              <calcite-button 
-                onClick={handleImportModel}
-                disabled={isUploading}
-                appearance="solid"
-                width="full"
-              >
-                {isUploading ? 'Uploading...' : 'Import Model'}
-              </calcite-button>
-            </div>
-
-            {/* Error Display */}
-            {uploadError && (
-              <calcite-notice open kind="danger">
-                <div slot="title">Upload Error</div>
-                <div slot="message">{uploadError}</div>
-              </calcite-notice>
-            )}
-
-            {models.length === 0 ? (
-              <calcite-notice open kind="info">
-                <div slot="title">No Models</div>
-                <div slot="message">Upload a model to get started.</div>
-              </calcite-notice>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {models.map((model) => (
-                  <calcite-card key={model.filename}>
-                    <div slot="title" className="text-sm font-medium truncate" title={model.originalName}>
-                      {model.originalName}
-                    </div>
-                    <div slot="subtitle" className="text-xs text-gray-500">
-                      {(model.size / 1024 / 1024).toFixed(2)} MB • {new Date(model.uploadedAt).toLocaleDateString()}
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      <calcite-button
-                        onClick={() => handleSelectModel(model)}
-                        appearance="solid"
-                        scale="s"
-                        width="half"
-                      >
-                        Use
-                      </calcite-button>
-                      <calcite-button
-                        onClick={() => handleDeleteModel(model.filename)}
-                        appearance="outline"
-                        kind="danger"
-                        scale="s"
-                        width="half"
-                      >
-                        Delete
-                      </calcite-button>
-                    </div>
-                  </calcite-card>
+      {/* Main Content */}
+      <div className="main-content">
+        <div className="bg-white border-r border-gray-200 flex-shrink-0 shadow-sm flex flex-col" style={{ width: '320px' }}>
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
+            <h2 className="text-lg font-semibold text-gray-900 m-0">Controls</h2>
+          </div>
+          <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+            
+            {/* Widget Switcher */}
+            <div className="space-y-3">
+              <div>
+                <button onClick={getMapViewLocation} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Update Location
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {widgets.map(widget => (
+                  <button
+                    key={widget.id}
+                    onClick={() => switchWidget(widget.id)}
+                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      activeWidget === widget.id
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    {widget.name}
+                  </button>
                 ))}
               </div>
-            )}
+
+              <input
+                type="datetime-local"
+                value={datetimeValue}
+                onChange={(e) => setDatetimeValue(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              />
+            </div>
+
+            {/* Model Selector */}
+            <PresetModels onSelect={handleSelectPremadeModel} />
+
+            {/* Models List */}
+            <div className="flex-1">
+              <h3 className="text-base font-semibold mb-3 m-0">
+                Your Models ({models.length})
+              </h3>
+
+              {/* Error Display */}
+              {uploadError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-3">
+                  <div className="text-sm font-medium text-red-800">Upload Error</div>
+                  <div className="text-sm text-red-600">{uploadError}</div>
+                </div>
+              )}
+
+              {models.length === 0 ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <div className="text-sm font-medium text-blue-800">No Models Yet</div>
+                  <div className="text-sm text-blue-600">Upload a model to get started.</div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {models.map((model) => (
+                    <div key={model.filename} className="bg-white border border-gray-200 rounded-md p-3 shadow-sm">
+                      <div className="text-sm font-medium truncate" title={model.originalName}>
+                        {model.originalName}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {(model.size / 1024 / 1024).toFixed(2)} MB • {new Date(model.uploadedAt).toLocaleDateString()}
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handleSelectModel(model)}
+                          className="flex-1 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700"
+                        >
+                          Use
+                        </button>
+                        <button
+                          onClick={() => handleDeleteModel(model.filename)}
+                          className="flex-1 px-3 py-1 border border-red-300 text-red-700 text-xs font-medium rounded hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+        <div id="viewDiv" className="flex-1 h-full"></div>
       </div>
-      <div id="viewDiv" className="flex-1 h-full"></div>
     </div>
   );
 }
