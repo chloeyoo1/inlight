@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
+import './MainApp.css';
 
 import "@esri/calcite-components";
 import "@esri/calcite-components/dist/components/calcite-button";
@@ -171,7 +172,7 @@ function MainApp({ onBackToLanding }: MainAppProps) {
       console.error("Error loading SceneView:", error);
     });
 
-  }, []);
+  }, [editorRef, weatherRef, shadowCastRef, daylightRef]);
 
   const handleImportModel = async () => {
     await viewRef.current?.when();
@@ -269,37 +270,33 @@ function MainApp({ onBackToLanding }: MainAppProps) {
   }, [viewGeolocation]);
 
   return (
-    <div className="App flex flex-col h-screen">
+    <div className="main-app">
       {/* Back Button */}
-      <div className="absolute top-4 left-4 z-10">
+      <div className="back-button-container">
         <button
           onClick={onBackToLanding}
-          className="bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+          className="back-button"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           Back to Home
         </button>
       </div>
 
-      <div id="viewDiv" className="flex-1"></div>
-      <div className="h-[300px] bg-gray-100 overflow-auto p-4">
-        <div className="flex flex-col gap-4">
+      <div id="viewDiv" className="view-container"></div>
+      <div className="controls-panel">
+        <div className="controls-content">
           
           {/* Widget Switcher */}
-          <div className="mb-4 text-left">
-            <button onClick={getMapViewLocation}>update</button>
-            <div className="flex flex-wrap gap-2 mb-4 justify-start">
+          <div className="widget-section">
+            <button onClick={getMapViewLocation} className="update-button">update</button>
+            <div className="widget-buttons">
               {widgets.map(widget => (
                 <button
                   key={widget.id}
                   onClick={() => switchWidget(widget.id)}
-                  className={`px-3 py-1 rounded text-sm ${
-                    activeWidget === widget.id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  className={`widget-button ${activeWidget === widget.id ? 'active' : 'inactive'}`}
                 >
                   {widget.name}
                 </button>
@@ -308,61 +305,62 @@ function MainApp({ onBackToLanding }: MainAppProps) {
           </div>
 
           {/* Upload Section */}
-          <div className="flex items-center gap-4">
-            <calcite-button 
+          <div className="upload-section">
+            <button 
               onClick={handleImportModel}
               disabled={isUploading}
+              className="upload-button"
             >
               {isUploading ? 'Uploading...' : 'Import Your Model'}
-            </calcite-button>
+            </button>
             <input 
               type="datetime-local" 
               onChange={handleDatetimeChange}
-              className="border rounded px-2 py-1"
+              className="datetime-input"
             />
           </div>
 
           {/* Error Display */}
           {uploadError && (
-            <div className="text-red-600 bg-red-100 p-2 rounded">
+            <div className="error-message">
               Error: {uploadError}
             </div>
           )}
 
           {/* Models List */}
-          <div>
-            <h3 className="font-semibold mb-2">Available Models ({models.length})</h3>
+          <div className="models-section">
+            <h3>Available Models ({models.length})</h3>
             {models.length === 0 ? (
-              <p className="text-gray-500">No models uploaded yet. Upload a model to get started.</p>
+              <p className="models-empty">No models uploaded yet. Upload a model to get started.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="models-grid">
                 {models.map((model) => (
                   <div 
                     key={model.filename} 
-                    className="border rounded p-2 bg-white hover:bg-gray-50 cursor-pointer"
+                    className="model-card"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate" title={model.originalName}>
+                    <div className="model-content">
+                      <div className="model-info">
+                        <p className="model-name" title={model.originalName}>
                           {model.originalName}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="model-size">
                           {(model.size / 1024 / 1024).toFixed(2)} MB
                         </p>
-                        <p className="text-xs text-gray-400">
+                        <p className="model-date">
                           {new Date(model.uploadedAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex gap-1 ml-2">
+                      <div className="model-actions">
                         <button
                           onClick={() => handleSelectModel(model)}
-                          className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                          className="action-button use"
                         >
                           Use
                         </button>
                         <button
                           onClick={() => deleteModel(model.filename)}
-                          className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                          className="action-button delete"
                         >
                           Delete
                         </button>

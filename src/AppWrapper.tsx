@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import LandingPage from './LandingPage';
 import MainApp from './MainApp';
+import './AppWrapper.css';
 
 const AppWrapper: React.FC = () => {
   const [showMainApp, setShowMainApp] = useState(false);

@@ -1,3 +1,4 @@
+/* Global App styles */
 .App {
   text-align: center;
   width: 100vw;
@@ -6,6 +7,7 @@
   padding: 0;
 }
 
+/* 3D View container - essential for ArcGIS SceneView */
 #viewDiv {
   padding: 0;
   margin: 0;
