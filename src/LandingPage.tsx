@@ -1,4 +1,5 @@
 import React from 'react';
+import './LandingPage.css';
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -6,66 +7,87 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="max-w-4xl mx-auto text-center">
-        {/* Logo/Title Section */}
-        <div className="mb-12">
-          <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            Inlight
-          </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Interactive 3D Sunlight-to-Room Interaction Visualization Platform
-          </p>
-        </div>
-
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 4m0 13V4m-6 3l6-3" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Scan Your Room and Upload</h3>
-            <p className="text-gray-600">Upload and visualize your 3D models in a geo-accurate map.</p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Visualize Sunlight in Your Room</h3>
-            <p className="text-gray-600">See how the sunlight moves across your space over time, and understand how heat and light affect your room to optimize energy consumption.</p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Real-time Weather and Solar Radiation</h3>
-            <p className="text-gray-600">Experience dynamic weather conditions and lighting changes so you can plan your space accordingly.</p>
+    <div className="landing-page">
+      <div className="landing-container">
+        {/* Hero Section */}
+        <div className="landing-hero">
+          <div className="landing-hero-content">
+            <h1 className="landing-title">
+              Inlight
+            </h1>
+            <p className="landing-subtitle">
+              Advanced 3D sunlight visualization platform for architectural and environmental analysis
+            </p>
+            <ul className="hero-features">
+              <li>Real-time 3D model visualization</li>
+              <li>Accurate sunlight and shadow analysis</li>
+              <li>Weather integration and solar radiation data</li>
+              <li>Professional-grade mapping technology</li>
+            </ul>
           </div>
         </div>
 
-        {/* Call to Action */}
-        <div className="mb-8">
-          <button
-            onClick={onEnterApp}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            Launch Inlight
-          </button>
-        </div>
+        {/* Content Section */}
+        <div className="landing-content">
+          <div className="content-section">
+            <h2 className="section-title">Key Features</h2>
+            <div className="features-grid">
+              <div className="feature-card">
+                <div className="feature-icon upload">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                </div>
+                <div className="feature-content">
+                  <h3>Upload & Visualize</h3>
+                  <p>Import your 3D models (GLB, GLTF, OBJ) and visualize them in a geo-accurate environment with precise positioning and scaling.</p>
+                </div>
+              </div>
 
-        {/* Footer */}
-        <div className="text-gray-500 text-sm">
-          <p>Powered by ArcGIS Maps SDK for JavaScript</p>
-          <p className="mt-1">Built with React & TypeScript</p>
+              <div className="feature-card">
+                <div className="feature-icon visualize">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+                <div className="feature-content">
+                  <h3>Sunlight Analysis</h3>
+                  <p>Analyze how sunlight moves through your space over time, with accurate shadow casting and solar radiation calculations.</p>
+                </div>
+              </div>
+
+              <div className="feature-card">
+                <div className="feature-icon weather">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  </svg>
+                </div>
+                <div className="feature-content">
+                  <h3>Weather Integration</h3>
+                  <p>Access real-time weather data and integrate environmental conditions into your 3D visualization for comprehensive analysis.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="cta-section">
+            <button
+              onClick={onEnterApp}
+              className="cta-button"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Launch Inlight
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="landing-footer">
+        <p><strong>Powered by</strong> ArcGIS Maps SDK for JavaScript</p>
+        <p>Built with React & TypeScript • Professional 3D Visualization</p>
       </div>
     </div>
   );
