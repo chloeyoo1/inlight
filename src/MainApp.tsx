@@ -1,15 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
-import './MainApp.css';
 
 import "@esri/calcite-components";
 import "@esri/calcite-components/dist/components/calcite-button";
+import "@esri/calcite-components/dist/components/calcite-slider";
+import "@esri/calcite-components/dist/components/calcite-panel";
+import "@esri/calcite-components/dist/components/calcite-segmented-control";
+import "@esri/calcite-components/dist/components/calcite-segmented-control-item";
+import "@esri/calcite-components/dist/components/calcite-card";
+import "@esri/calcite-components/dist/components/calcite-notice";
+import "@esri/calcite-components/dist/components/calcite-input";
+import "@esri/calcite-components/dist/components/calcite-input-date-picker";
+import "@esri/calcite-components/dist/components/calcite-label";
 
 import esriConfig from '@arcgis/core/config';
 import WebScene from '@arcgis/core/WebScene';
 import SceneView from '@arcgis/core/views/SceneView';
-import Editor from '@arcgis/core/widgets/Editor';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import TileLayer from '@arcgis/core/layers/TileLayer';
+import MapImageLayer from '@arcgis/core/layers/MapImageLayer';
+// import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
+import Graphic from '@arcgis/core/Graphic';
+import Basemap from '@arcgis/core/Basemap';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 import Weather from "@arcgis/core/widgets/Weather.js";
@@ -18,23 +31,211 @@ import Daylight from "@arcgis/core/widgets/Daylight.js";
 
 import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/weather_utils';
 import { ModelService, ModelInfo } from './services/modelService';
-import { useWidgetManager } from './hooks/useWidgetManager';
-import { useModelManager } from './hooks/useModelManager';
+import { executeGeoprocessingTask } from './utils/geoproc_utils';
+import { getCurrentUTCTime, getCurrentLocalTimeISO, convertLocalInputToUTC, convertUTCToLocalInput } from './utils/time_utils';
+import PresetModels from './components/PresetModels';
 
-interface MainAppProps {
-  onBackToLanding: () => void;
-}
-
-function MainApp({ onBackToLanding }: MainAppProps) {
+function MainApp() {
   const viewRef = useRef<SceneView | null>(null);
   const sceneRef = useRef<WebScene | null>(null);
   const sketchVMRef = useRef<SketchViewModel | null>(null);
   
+  // Widget refs
+  const sunlightPanelRef = useRef<any>(null);
+  const weatherRef = useRef<Weather | null>(null);
+  const shadowCastRef = useRef<ShadowCast | null>(null);
+  const daylightRef = useRef<Daylight | null>(null);
+  
+  // Active widget state
+  const [activeWidget, setActiveWidget] = useState<string>('sunlight');
+  
+  // Sunlight layer state
+  const [activeSunlightLayer, setActiveSunlightLayer] = useState<'direct' | 'diffuse' | 'duration'>('direct');
+  const directSunlightRef = useRef<FeatureLayer | null>(null);
+  const diffuseSunlightRef = useRef<FeatureLayer | null>(null);
+  const durationSunlightRef = useRef<FeatureLayer | null>(null);
+
   const [viewGeolocation, setViewGeolocation] = useState<Geolocation | null>(null);
 
-  // Custom hooks
-  const { activeWidget, widgets, switchWidget, editorRef, weatherRef, shadowCastRef, daylightRef } = useWidgetManager(viewRef.current);
-  const { models, isUploading, uploadError, setUploadError, setIsUploading, loadModels, deleteModel } = useModelManager();
+  const widgets = [
+    { id: 'sunlight', name: 'Sunlight Layers', ref: sunlightPanelRef },
+    { id: 'weather', name: 'Weather', ref: weatherRef },
+    { id: 'shadowcast', name: 'Shadow Cast', ref: shadowCastRef },
+    { id: 'daylight', name: 'Daylight', ref: daylightRef }
+  ];
+
+  const switchWidget = (widgetId: string) => {
+    if (!viewRef.current) return;
+    
+    try {
+      // Handle sunlight layer visibility when switching away from sunlight panel
+      if (activeWidget === 'sunlight' && widgetId !== 'sunlight') {
+        // Hide all sunlight layers when switching away from sunlight panel
+        if (directSunlightRef.current) directSunlightRef.current.visible = false;
+        if (diffuseSunlightRef.current) diffuseSunlightRef.current.visible = false;
+        if (durationSunlightRef.current) durationSunlightRef.current.visible = false;
+      }
+      
+      // Remove all current widgets
+      widgets.forEach(widget => {
+        if (widget.ref?.current) {
+          viewRef.current!.ui.remove(widget.ref.current);
+          // Destroy widget to free memory (except the one we're switching to and except HTML elements)
+          if (widget.id !== widgetId && widget.ref.current && 'destroy' in widget.ref.current && typeof widget.ref.current.destroy === 'function') {
+            widget.ref.current.destroy();
+            widget.ref.current = null;
+          }
+        }
+      });
+      
+      // Create and show selected widget
+      if (widgetId !== 'none') {
+        const selectedWidget = widgets.find(w => w.id === widgetId);
+        if (selectedWidget) {
+          // Create widget if it doesn't exist
+          if (!selectedWidget.ref?.current) {
+            createWidget(widgetId);
+          }
+          // Add to UI
+          if (selectedWidget.ref?.current) {
+            viewRef.current.ui.add(selectedWidget.ref.current, "top-right");
+          }
+        }
+      }
+      
+      // Handle sunlight layer visibility when switching back to sunlight panel
+      if (widgetId === 'sunlight') {
+        // Show the previously selected sunlight layer when switching back to sunlight panel
+        switchSunlightLayer(activeSunlightLayer);
+      }
+      
+      setActiveWidget(widgetId);
+    } catch (error) {
+      console.warn('Widget switching error:', error);
+      setActiveWidget(widgetId);
+    }
+  };
+
+  const switchSunlightLayer = (layerType: 'direct' | 'diffuse' | 'duration') => {
+    if (!directSunlightRef.current || !diffuseSunlightRef.current || !durationSunlightRef.current) return;
+    
+    // Hide all layers first
+    directSunlightRef.current.visible = false;
+    diffuseSunlightRef.current.visible = false;
+    durationSunlightRef.current.visible = false;
+    
+    // Show selected layer
+    switch (layerType) {
+      case 'direct':
+        directSunlightRef.current.visible = true;
+        break;
+      case 'diffuse':
+        diffuseSunlightRef.current.visible = true;
+        break;
+      case 'duration':
+        durationSunlightRef.current.visible = true;
+        break;
+    }
+    
+    setActiveSunlightLayer(layerType);
+  };
+
+  const createWidget = (widgetId: string) => {
+    if (!viewRef.current) return;
+
+    switch (widgetId) {
+      case 'sunlight':
+        if (!sunlightPanelRef.current) {
+          const panel = document.createElement("calcite-panel");
+          panel.setAttribute("heading", "Sunlight Analysis");
+          panel.style.width = "320px";
+          panel.style.maxHeight = "400px";
+          
+          panel.innerHTML = `
+            <div style="padding: 16px;">
+              <calcite-segmented-control id="sunlight-control" width="full" style="margin-bottom: 16px;">
+                <calcite-segmented-control-item value="direct" checked>Direct</calcite-segmented-control-item>
+                <calcite-segmented-control-item value="diffuse">Diffuse</calcite-segmented-control-item>
+                <calcite-segmented-control-item value="duration">Duration</calcite-segmented-control-item>
+              </calcite-segmented-control>
+              
+              <div id="layer-info" style="font-size: 13px; color: var(--calcite-color-text-2); line-height: 1.4;">
+                <div id="direct-info">
+                  <strong>Direct Sunlight:</strong> Areas that receive unobstructed sunlight throughout the day. These areas have the highest solar irradiance.
+                </div>
+                <div id="diffuse-info" style="display: none;">
+                  <strong>Diffuse Sunlight:</strong> Areas that receive scattered or indirect sunlight due to obstructions like buildings, trees, or terrain. These areas have lower solar irradiance but still receive some light throughout the day.
+                </div>
+                <div id="duration-info" style="display: none;">
+                  <strong>Duration:</strong> Shows the amount of time each location receives direct sunlight throughout the day. Darker areas indicate longer sunlight exposure duration.
+                </div>
+              </div>
+            </div>
+          `;
+          
+          const segmentedControl = panel.querySelector('#sunlight-control') as any;
+          const directInfo = panel.querySelector('#direct-info') as HTMLElement;
+          const diffuseInfo = panel.querySelector('#diffuse-info') as HTMLElement;
+          const durationInfo = panel.querySelector('#duration-info') as HTMLElement;
+          
+          const updateInfo = (value: string) => {
+            // Hide all info sections
+            directInfo.style.display = 'none';
+            diffuseInfo.style.display = 'none';
+            durationInfo.style.display = 'none';
+            
+            // Show the selected info section
+            switch (value) {
+              case 'direct':
+                directInfo.style.display = 'block';
+                break;
+              case 'diffuse':
+                diffuseInfo.style.display = 'block';
+                break;
+              case 'duration':
+                durationInfo.style.display = 'block';
+                break;
+            }
+          };
+          
+          segmentedControl.addEventListener('calciteSegmentedControlChange', (event: any) => {
+            const selectedValue = event.target.selectedItem.value;
+            switchSunlightLayer(selectedValue as 'direct' | 'diffuse' | 'duration');
+            updateInfo(selectedValue);
+          });
+          
+          sunlightPanelRef.current = panel as any;
+        }
+        break;
+      case 'weather':
+        if (!weatherRef.current) {
+          const weatherWidget = new Weather({ view: viewRef.current });
+          weatherRef.current = weatherWidget;
+        }
+        break;
+      case 'shadowcast':
+        if (!shadowCastRef.current) {
+          const shadowCastWidget = new ShadowCast({
+            view: viewRef.current
+          });
+          shadowCastRef.current = shadowCastWidget;
+        }
+        break;
+      case 'daylight':
+        if (!daylightRef.current) {
+          const daylightWidget = new Daylight({
+            view: viewRef.current,
+            dateOrSeason: "date"
+          });
+          daylightRef.current = daylightWidget;
+        }
+        break;
+    }
+  };
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [datetimeValue, setDatetimeValue] = useState(getCurrentLocalTimeISO());
 
   try {
     const { default: ARCGIS_API_KEY } = require('./key');
@@ -50,71 +251,101 @@ function MainApp({ onBackToLanding }: MainAppProps) {
       }
     });
 
-    const recreationLayer = new FeatureLayer({
-      title: "Recreation",
-      url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
-      elevationInfo: {
-        mode: "absolute-height",
-      },
-      renderer: {
-        type: "unique-value",
-        field: "TYPE",
-        visualVariables: [
-          {
-            type: "size",
-            field: "SIZE",
-            axis: "height",
-            valueUnit: "meters",
-          },
-          {
-            type: "rotation",
-            field: "ROTATION",
-          },
-        ],
-        uniqueValueInfos: [
-          {
-            value: "1",
-            label: "Slide",
-            symbol: {
-              type: "point-3d",
-              symbolLayers: [
-                {
-                  type: "object",
-                  resource: {
-                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Slide.glb",
-                  },
-                },
-              ],
-              styleOrigin: {
-                styleName: "EsriRecreationStyle",
-                name: "Slide",
-              },
-            },
-          },
-          {
-            value: "2",
-            label: "Swing",
-            symbol: {
-              type: "point-3d",
-              symbolLayers: [
-                {
-                  type: "object",
-                  resource: {
-                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
-                  },
-                },
-              ],
-              styleOrigin: {
-                styleName: "EsriRecreationStyle",
-                name: "Swing",
-              },
-            },
-          },
-        ],
-      },
-    });
+    // const recreationLayer = new FeatureLayer({
+    //   title: "Recreation",
+    //   url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
+    //   elevationInfo: {
+    //     mode: "absolute-height",
+    //   },
+    //   renderer: {
+    //     type: "unique-value", // autocasts as new UniqueValueRenderer()
+    //     field: "TYPE",
+    //     visualVariables: [
+    //       {
+    //         // size can be modified with the interactive handle
+    //         type: "size",
+    //         field: "SIZE",
+    //         axis: "height",
+    //         valueUnit: "meters",
+    //       },
+    //       {
+    //         // rotation can be modified with the interactive handle
+    //         type: "rotation",
+    //         field: "ROTATION",
+    //       },
+    //     ],
+    //     uniqueValueInfos: [
+    //       {
+    //         value: "1",
+    //         label: "Tree",
+    //         symbol: {
+    //           type: "point-3d", // autocasts as new PointSymbol3D()
+    //           symbolLayers: [
+    //             {
+    //               type: "object",
+    //               resource: {
+    //                 href: "/static/maple_tree.glb",
+    //               },
+    //             },
+    //           ],
+    //           styleOrigin: {
+    //             styleName: "EsriRecreationStyle",
+    //             name: "Tree",
+    //           },
+    //         },
+    //       },
+    //       {
+    //         value: "2",
+    //         label: "Swing",
+    //         symbol: {
+    //           type: "point-3d", // autocasts as new PointSymbol3D()
+    //           symbolLayers: [
+    //             {
+    //               type: "object",
+    //               resource: {
+    //                 href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
+    //               },
+    //             },
+    //           ],
+    //           styleOrigin: {
+    //             styleName: "EsriRecreationStyle",
+    //             name: "Swing",
+    //           },
+    //         },
+    //       },
+    //     ],
+    //   },
+    // });
+    // webScene.add(recreationLayer);
 
-    webScene.add(recreationLayer);
+    // Add the sunlight analysis layers
+    const directSunlight = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/direct_polygon_2/FeatureServer",
+      opacity: 0.8,
+      title: "Direct Sunlight",
+      visible: true // Start with direct sunlight visible (since sunlight panel is default active)
+    });
+    webScene.add(directSunlight);
+    directSunlightRef.current = directSunlight;
+
+    const diffuseSunlight = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/diffuse_polygon/FeatureServer",
+      opacity: 0.8,
+      title: "Diffuse Sunlight",
+      visible: false // Start with diffuse sunlight hidden
+    });
+    webScene.add(diffuseSunlight);
+    diffuseSunlightRef.current = diffuseSunlight;
+
+    const durationSunlight = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/duration_polygon/FeatureServer",
+      opacity: 0.8,
+      title: "Sunlight Duration",
+      visible: false // Start with duration sunlight hidden
+    });
+    webScene.add(durationSunlight);
+    durationSunlightRef.current = durationSunlight;
+  
     sceneRef.current = webScene;
 
     // Create and setup the SceneView
@@ -123,20 +354,18 @@ function MainApp({ onBackToLanding }: MainAppProps) {
       map: webScene,
       environment: {
         lighting: {
-          date: new Date(),
+          date: getCurrentUTCTime(),
           directShadowsEnabled: true
         }
       },
-      qualityProfile: "high"
+      qualityProfile: "high",
     });
 
-    // Initialize widgets
-    weatherRef.current = new Weather({ view });
-    shadowCastRef.current = new ShadowCast({ view });
-    daylightRef.current = new Daylight({ view, dateOrSeason: "date" });
+    // Don't create widgets here anymore - they'll be created on-demand
 
     const graphicsLayer = new GraphicsLayer({
-      elevationInfo: { mode: "relative-to-ground" }
+      elevationInfo: { mode: "relative-to-ground" },
+      title: "Custom Models"
     });
     view.map?.add(graphicsLayer);
 
@@ -146,22 +375,32 @@ function MainApp({ onBackToLanding }: MainAppProps) {
     });
 
     sketchVMRef.current = sketchVM;
+
     viewRef.current = view;
 
     view.when(() => {
-      editorRef.current = new Editor({
-        view: view,
-        tooltipOptions: { enabled: true },
-        labelOptions: { enabled: true }
-      });
+      // Create and show the default Sunlight panel
+      createWidget('sunlight');
+      if (sunlightPanelRef.current) {
+        view.ui.add(sunlightPanelRef.current, "top-right");
+      }
+
+      console.log("WebScene spatial reference:", view.spatialReference);
+
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
+          setViewGeolocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+          })
           view.goTo({
             center: [position.coords.longitude, position.coords.latitude],
             zoom: 20,
             tilt: 45
-          }, { duration: 2000 });
+          }, {
+            duration: 2000
+          })
         }, (error) => {
           console.error("Error getting location:", error);
         });
@@ -171,8 +410,21 @@ function MainApp({ onBackToLanding }: MainAppProps) {
     }).catch((error) => {
       console.error("Error loading SceneView:", error);
     });
+  }, []);
 
-  }, [editorRef, weatherRef, shadowCastRef, daylightRef]);
+  // Load models from server on component mount
+  useEffect(() => {
+    loadModels();
+  }, []);
+
+  const loadModels = async () => {
+    try {
+      const serverModels = await ModelService.getModels();
+      setModels(serverModels);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    }
+  };
 
   const handleImportModel = async () => {
     await viewRef.current?.when();
@@ -183,7 +435,10 @@ function MainApp({ onBackToLanding }: MainAppProps) {
 
     fileInput.onchange = async (event) => {
       const file = (event.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      if (!file) {
+        console.error("No file selected.");
+        return;
+      }
 
       if (!file.name.endsWith(".glb") && !file.name.endsWith(".gltf") && !file.name.endsWith(".obj")) {
         console.error("Invalid file type. Please upload a .glb, .gltf, or .obj file.");
@@ -194,23 +449,34 @@ function MainApp({ onBackToLanding }: MainAppProps) {
       setUploadError(null);
 
       try {
+        // Upload file to server
         const uploadResponse = await ModelService.uploadModel(file);
+        console.log("File uploaded successfully:", uploadResponse);
+
+        // Reload models list
         await loadModels();
 
+        // Add model to scene using server URL
         if (sceneRef.current && sketchVMRef.current) {
           sketchVMRef.current.pointSymbol = {
             type: "point-3d",
             symbolLayers: [
               {
                 type: "object",
-                resource: { href: uploadResponse.url },
+                resource: {
+                  href: uploadResponse.url,
+                },
               }
             ]
           };
 
           sketchVMRef.current.create("point");
+          console.log("Custom model added to the scene from server.");
+        } else {
+          console.error("Scene is not initialized.");
         }
       } catch (error) {
+        console.error("Upload failed:", error);
         setUploadError(error instanceof Error ? error.message : 'Upload failed');
       } finally {
         setIsUploading(false);
@@ -221,14 +487,20 @@ function MainApp({ onBackToLanding }: MainAppProps) {
   };
 
   const getMapViewLocation = async () => {
-    if (!viewRef.current) return;
-    
+    if (!viewRef.current) {
+      console.warn("SceneView is not initialized.");
+      return;
+    }
     await viewRef.current.when();
     const center = viewRef.current.center;
-    setViewGeolocation({ 
-      lat: center.latitude ?? 0, 
-      lon: center.longitude ?? 0 
-    });
+    if (center) {
+      setViewGeolocation({ 
+        lat: center.latitude ?? 0, 
+        lon: center.longitude ?? 0 
+      });
+    } else {
+      console.warn("View center is undefined.");
+    }
   };
 
   const handleSelectModel = async (model: ModelInfo) => {
@@ -238,30 +510,51 @@ function MainApp({ onBackToLanding }: MainAppProps) {
         symbolLayers: [
           {
             type: "object",
-            resource: { href: model.url },
+            resource: {
+              href: model.url,
+            },
           }
         ]
       };
 
       sketchVMRef.current.create("point");
+      console.log("Model selected from server:", model.originalName);
     }
   };
 
-  const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedDate = new Date(event.target.value);
-    if (viewRef.current) {
-      viewRef.current.environment.lighting = {
-        type: "sun",
-        date: selectedDate,
-      };
+  const handleDeleteModel = async (filename: string) => {
+    try {
+      await ModelService.deleteModel(filename);
+      await loadModels(); // Reload the models list
+      console.log("Model deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete model:", error);
     }
   };
 
   useEffect(() => {
-    if (viewRef.current && viewGeolocation) {
-      getWeather(viewGeolocation).then(data => {
-        if (data?.properties?.periods?.[0]) {
-          applyNWSWeatherToScene(data.properties.periods[0], viewRef.current!);
+    console.log("Datetime input changed:", datetimeValue);
+    const utcDate = convertLocalInputToUTC(datetimeValue);
+    
+    if (viewRef.current) {
+      viewRef.current.environment.lighting = {
+        type: "sun",
+        date: utcDate,
+      };
+
+      console.log("Lighting date updated to UTC:", utcDate, "from local input:", utcDate.toISOString());
+    }
+  }, [datetimeValue]);
+
+  useEffect(() => {
+    if (viewRef && viewGeolocation) {
+      const weatherData = getWeather(viewGeolocation);
+      weatherData.then(data => {
+        if (data && data.properties && data.properties.periods && data.properties.periods.length > 0) {
+          const nwsPeriod = data.properties.periods[0];
+          applyNWSWeatherToScene(nwsPeriod, viewRef.current!);
+        } else {
+          console.warn("No valid weather periods found in the response.");
         }
       }).catch(error => {
         console.error("Error fetching or applying weather data:", error);
@@ -269,112 +562,159 @@ function MainApp({ onBackToLanding }: MainAppProps) {
     }
   }, [viewGeolocation]);
 
-  return (
-    <div className="main-app">
-      {/* Back Button */}
-      <div className="back-button-container">
-        <button
-          onClick={onBackToLanding}
-          className="back-button"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Home
-        </button>
-      </div>
+  const runGeoprocessingTask = async () => {
+    const results = await executeGeoprocessingTask({
+      "Time_configuration": "Whole year",
+      "Day_interval": 14,
+      "Hour_interval": 2,
+    });
 
-      <div id="viewDiv" className="view-container"></div>
-      <div className="controls-panel">
-        <div className="controls-content">
+    // if (results.url) {
+    //   const gpLayer = new FeatureLayer({
+    //     url: results.url,
+    //     title: "Geoprocessing Result"
+    //   });
+    //   sceneRef.current?.add(gpLayer);
+    //   console.log("FeatureLayer added from geoprocessing result:", results.url);
+    // }
+    console.log("Geoprocessing task executed successfully:", results);
+    await results.load();
+  }
+
+  const handleSelectPremadeModel = async (modelUrl: string, height?: number) => {
+    if (sceneRef.current && sketchVMRef.current) {
+      sketchVMRef.current.pointSymbol = {
+        type: "point-3d",
+        symbolLayers: [
+          {
+            type: "object",
+            height: height || 10, // Default height if not provided
+            resource: {
+              href: modelUrl,
+            },
+          }
+        ]
+      };
+
+      sketchVMRef.current.create("point");
+      console.log("Premade model selected:", modelUrl, "with height:", height);
+    }
+  };
+
+  return (
+    <div className="App flex h-screen">
+      <div className="bg-white border-r border-gray-200 flex-shrink-0 shadow-sm flex flex-col" style={{ width: '320px' }}>
+        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900 m-0">Controls</h2>
+        </div>
+        <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
           
           {/* Widget Switcher */}
-          <div className="widget-section">
-            <button onClick={getMapViewLocation} className="update-button">update</button>
-            <div className="widget-buttons">
+          <div className="space-y-3">
+            <div>
+              <calcite-button onClick={getMapViewLocation} width="full" appearance="outline">
+                Update Location
+              </calcite-button>
+            </div>
+            <div>
+              <calcite-button onClick={runGeoprocessingTask} width="full" appearance="outline">
+                Test Geoprocessing
+              </calcite-button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               {widgets.map(widget => (
-                <button
+                <calcite-button
                   key={widget.id}
                   onClick={() => switchWidget(widget.id)}
-                  className={`widget-button ${activeWidget === widget.id ? 'active' : 'inactive'}`}
+                  appearance={activeWidget === widget.id ? 'solid' : 'outline'}
+                  scale="s"
                 >
                   {widget.name}
-                </button>
+                </calcite-button>
               ))}
             </div>
-          </div>
 
-          {/* Upload Section */}
-          <div className="upload-section">
-            <button 
-              onClick={handleImportModel}
-              disabled={isUploading}
-              className="upload-button"
-            >
-              {isUploading ? 'Uploading...' : 'Import Your Model'}
-            </button>
-            <input 
-              type="datetime-local" 
-              onChange={handleDatetimeChange}
-              className="datetime-input"
+            <input
+              type="datetime-local"
+              value={datetimeValue}
+              onChange={(e) => setDatetimeValue(e.target.value)}
+              className="w-full"
             />
           </div>
 
-          {/* Error Display */}
-          {uploadError && (
-            <div className="error-message">
-              Error: {uploadError}
-            </div>
-          )}
+          {/* Model Selector */}
+          <PresetModels onSelect={handleSelectPremadeModel} />
 
           {/* Models List */}
-          <div className="models-section">
-            <h3>Available Models ({models.length})</h3>
+          <div className="flex-1">
+            <h3 className="text-base font-semibold mb-3 m-0">
+              Your Models ({models.length})
+            </h3>
+
+            {/* Upload Section */}
+            <div className="flex flex-col gap-3 mb-5">
+              <calcite-button 
+                onClick={handleImportModel}
+                disabled={isUploading}
+                appearance="solid"
+                width="full"
+              >
+                {isUploading ? 'Uploading...' : 'Import Model'}
+              </calcite-button>
+            </div>
+
+            {/* Error Display */}
+            {uploadError && (
+              <calcite-notice open kind="danger">
+                <div slot="title">Upload Error</div>
+                <div slot="message">{uploadError}</div>
+              </calcite-notice>
+            )}
+
             {models.length === 0 ? (
-              <p className="models-empty">No models uploaded yet. Upload a model to get started.</p>
+              <calcite-notice open kind="info">
+                <div slot="title">No Models</div>
+                <div slot="message">Upload a model to get started.</div>
+              </calcite-notice>
             ) : (
-              <div className="models-grid">
+              <div className="flex flex-col gap-3">
                 {models.map((model) => (
-                  <div 
-                    key={model.filename} 
-                    className="model-card"
-                  >
-                    <div className="model-content">
-                      <div className="model-info">
-                        <p className="model-name" title={model.originalName}>
-                          {model.originalName}
-                        </p>
-                        <p className="model-size">
-                          {(model.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                        <p className="model-date">
-                          {new Date(model.uploadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="model-actions">
-                        <button
-                          onClick={() => handleSelectModel(model)}
-                          className="action-button use"
-                        >
-                          Use
-                        </button>
-                        <button
-                          onClick={() => deleteModel(model.filename)}
-                          className="action-button delete"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                  <calcite-card key={model.filename}>
+                    <div slot="title" className="text-sm font-medium truncate" title={model.originalName}>
+                      {model.originalName}
                     </div>
-                  </div>
+                    <div slot="subtitle" className="text-xs text-gray-500">
+                      {(model.size / 1024 / 1024).toFixed(2)} MB • {new Date(model.uploadedAt).toLocaleDateString()}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <calcite-button
+                        onClick={() => handleSelectModel(model)}
+                        appearance="solid"
+                        scale="s"
+                        width="half"
+                      >
+                        Use
+                      </calcite-button>
+                      <calcite-button
+                        onClick={() => handleDeleteModel(model.filename)}
+                        appearance="outline"
+                        kind="danger"
+                        scale="s"
+                        width="half"
+                      >
+                        Delete
+                      </calcite-button>
+                    </div>
+                  </calcite-card>
                 ))}
               </div>
             )}
           </div>
         </div>
       </div>
+      <div id="viewDiv" className="flex-1 h-full"></div>
     </div>
   );
 }
 
-export default MainApp; 
+export default MainApp;
