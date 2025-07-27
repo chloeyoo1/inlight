@@ -9,9 +9,11 @@ import WebScene from '@arcgis/core/WebScene';
 import SceneView from '@arcgis/core/views/SceneView';
 import Editor from '@arcgis/core/widgets/Editor';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import TileLayer from '@arcgis/core/layers/TileLayer';
 // import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
 import Graphic from '@arcgis/core/Graphic';
+import Basemap from '@arcgis/core/Basemap';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import SketchViewModel from '@arcgis/core/widgets/Sketch/SketchViewModel';
 import Weather from "@arcgis/core/widgets/Weather.js";
@@ -21,6 +23,8 @@ import Daylight from "@arcgis/core/widgets/Daylight.js";
 import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/weather_utils';
 import { ModelService, ModelInfo } from './services/modelService';
 import { executeGeoprocessingTask } from './utils/geoproc_utils';
+import { getCurrentUTCTime, getCurrentLocalTimeISO, convertLocalInputToUTC, convertUTCToLocalInput } from './utils/time_utils';
+import ModelSelector from './components/ModelSelector';
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
@@ -49,18 +53,30 @@ function App() {
     if (!viewRef.current) return;
     
     try {
-      // Hide all widgets first
+      // Remove all current widgets
       widgets.forEach(widget => {
         if (widget.ref?.current) {
           viewRef.current!.ui.remove(widget.ref.current);
+          // Destroy widget to free memory (except the one we're switching to)
+          if (widget.id !== widgetId && widget.ref.current.destroy) {
+            widget.ref.current.destroy();
+            widget.ref.current = null;
+          }
         }
       });
       
-      // Show selected widget
+      // Create and show selected widget
       if (widgetId !== 'none') {
         const selectedWidget = widgets.find(w => w.id === widgetId);
-        if (selectedWidget?.ref?.current) {
-          viewRef.current.ui.add(selectedWidget.ref.current, "top-right");
+        if (selectedWidget) {
+          // Create widget if it doesn't exist
+          if (!selectedWidget.ref?.current) {
+            createWidget(widgetId);
+          }
+          // Add to UI
+          if (selectedWidget.ref?.current) {
+            viewRef.current.ui.add(selectedWidget.ref.current, "top-right");
+          }
         }
       }
       
@@ -68,6 +84,50 @@ function App() {
     } catch (error) {
       console.warn('Widget switching error:', error);
       setActiveWidget(widgetId);
+    }
+  };
+
+  const createWidget = (widgetId: string) => {
+    if (!viewRef.current) return;
+
+    switch (widgetId) {
+      case 'editor':
+        if (!editorRef.current) {
+          const editor = new Editor({
+            view: viewRef.current,
+            tooltipOptions: {
+              enabled: true,
+            },
+            labelOptions: {
+              enabled: true,
+            }
+          });
+          editorRef.current = editor;
+        }
+        break;
+      case 'weather':
+        if (!weatherRef.current) {
+          const weatherWidget = new Weather({ view: viewRef.current });
+          weatherRef.current = weatherWidget;
+        }
+        break;
+      case 'shadowcast':
+        if (!shadowCastRef.current) {
+          const shadowCastWidget = new ShadowCast({
+            view: viewRef.current
+          });
+          shadowCastRef.current = shadowCastWidget;
+        }
+        break;
+      case 'daylight':
+        if (!daylightRef.current) {
+          const daylightWidget = new Daylight({
+            view: viewRef.current,
+            dateOrSeason: "date"
+          });
+          daylightRef.current = daylightWidget;
+        }
+        break;
     }
   };
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -88,73 +148,82 @@ function App() {
       }
     });
 
-    const recreationLayer = new FeatureLayer({
-      title: "Recreation",
-      url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
-      elevationInfo: {
-        mode: "absolute-height",
-      },
-      renderer: {
-        type: "unique-value", // autocasts as new UniqueValueRenderer()
-        field: "TYPE",
-        visualVariables: [
-          {
-            // size can be modified with the interactive handle
-            type: "size",
-            field: "SIZE",
-            axis: "height",
-            valueUnit: "meters",
-          },
-          {
-            // rotation can be modified with the interactive handle
-            type: "rotation",
-            field: "ROTATION",
-          },
-        ],
-        uniqueValueInfos: [
-          {
-            value: "1",
-            label: "Slide",
-            symbol: {
-              type: "point-3d", // autocasts as new PointSymbol3D()
-              symbolLayers: [
-                {
-                  type: "object",
-                  resource: {
-                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Slide.glb",
-                  },
-                },
-              ],
-              styleOrigin: {
-                styleName: "EsriRecreationStyle",
-                name: "Slide",
-              },
-            },
-          },
-          {
-            value: "2",
-            label: "Swing",
-            symbol: {
-              type: "point-3d", // autocasts as new PointSymbol3D()
-              symbolLayers: [
-                {
-                  type: "object",
-                  resource: {
-                    href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
-                  },
-                },
-              ],
-              styleOrigin: {
-                styleName: "EsriRecreationStyle",
-                name: "Swing",
-              },
-            },
-          },
-        ],
-      },
-    });
+    // const recreationLayer = new FeatureLayer({
+    //   title: "Recreation",
+    //   url: "https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/EditableFeatures3D/FeatureServer/1",
+    //   elevationInfo: {
+    //     mode: "absolute-height",
+    //   },
+    //   renderer: {
+    //     type: "unique-value", // autocasts as new UniqueValueRenderer()
+    //     field: "TYPE",
+    //     visualVariables: [
+    //       {
+    //         // size can be modified with the interactive handle
+    //         type: "size",
+    //         field: "SIZE",
+    //         axis: "height",
+    //         valueUnit: "meters",
+    //       },
+    //       {
+    //         // rotation can be modified with the interactive handle
+    //         type: "rotation",
+    //         field: "ROTATION",
+    //       },
+    //     ],
+    //     uniqueValueInfos: [
+    //       {
+    //         value: "1",
+    //         label: "Tree",
+    //         symbol: {
+    //           type: "point-3d", // autocasts as new PointSymbol3D()
+    //           symbolLayers: [
+    //             {
+    //               type: "object",
+    //               resource: {
+    //                 href: "/static/maple_tree.glb",
+    //               },
+    //             },
+    //           ],
+    //           styleOrigin: {
+    //             styleName: "EsriRecreationStyle",
+    //             name: "Tree",
+    //           },
+    //         },
+    //       },
+    //       {
+    //         value: "2",
+    //         label: "Swing",
+    //         symbol: {
+    //           type: "point-3d", // autocasts as new PointSymbol3D()
+    //           symbolLayers: [
+    //             {
+    //               type: "object",
+    //               resource: {
+    //                 href: "https://static.arcgis.com/arcgis/styleItems/Recreation/gltf/resource/Swing.glb",
+    //               },
+    //             },
+    //           ],
+    //           styleOrigin: {
+    //             styleName: "EsriRecreationStyle",
+    //             name: "Swing",
+    //           },
+    //         },
+    //       },
+    //     ],
+    //   },
+    // });
+    // webScene.add(recreationLayer);
 
-    webScene.add(recreationLayer);
+    const modelLayer = new GraphicsLayer();
+    webScene.add(modelLayer);
+
+    // Add the tile package hosted service
+    const tilePackageLayer = new TileLayer({
+      url: "https://tiles.arcgis.com/tiles/LLNIdHmmdjO2qQ5q/arcgis/rest/services/solardirect_extilecache/MapServer",
+      opacity: 0.8
+    });
+    webScene.add(tilePackageLayer);
   
     sceneRef.current = webScene;
 
@@ -164,26 +233,14 @@ function App() {
       map: webScene,
       environment: {
         lighting: {
-          date: new Date(),
+          date: getCurrentUTCTime(),
           directShadowsEnabled: true
         }
       },
-      qualityProfile: "high"
+      qualityProfile: "high",
     });
 
-    const weatherWidget = new Weather({ view: view });
-    weatherRef.current = weatherWidget;
-
-    const shadowCastWidget = new ShadowCast({
-      view: view
-    });
-    shadowCastRef.current = shadowCastWidget;
-
-    const daylightWidget = new Daylight({
-      view: view,
-      dateOrSeason: "date"
-    });
-    daylightRef.current = daylightWidget;
+    // Don't create widgets here anymore - they'll be created on-demand
 
     const graphicsLayer = new GraphicsLayer({
       elevationInfo: { mode: "relative-to-ground" }
@@ -200,19 +257,21 @@ function App() {
     viewRef.current = view;
 
     view.when(() => {
-      const editor = new Editor({
-        view: view,
-        tooltipOptions: {
-          enabled: true,
-        },
-        labelOptions: {
-          enabled: true,
-        }
-      });
-      editorRef.current = editor;
+      // Create and show the default Editor widget
+      createWidget('editor');
+      if (editorRef.current) {
+        view.ui.add(editorRef.current, "top-right");
+      }
+
+      console.log("WebScene spatial reference:", view.spatialReference);
+
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
+          setViewGeolocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+          })
           view.goTo({
             center: [position.coords.longitude, position.coords.latitude],
             zoom: 20,
@@ -229,7 +288,6 @@ function App() {
     }).catch((error) => {
       console.error("Error loading SceneView:", error);
     });
-
   }, []);
 
   // Load models from server on component mount
@@ -313,10 +371,14 @@ function App() {
     }
     await viewRef.current.when();
     const center = viewRef.current.center;
-    setViewGeolocation({ 
-      lat: center.latitude ?? 0, 
-      lon: center.longitude ?? 0 
-    });
+    if (center) {
+      setViewGeolocation({ 
+        lat: center.latitude ?? 0, 
+        lon: center.longitude ?? 0 
+      });
+    } else {
+      console.warn("View center is undefined.");
+    }
   };
 
   const handleSelectModel = async (model: ModelInfo) => {
@@ -349,14 +411,16 @@ function App() {
   };
 
   const handleDatetimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedDate = new Date(event.target.value);
+    const localDateTimeString = event.target.value;
+    const utcDate = convertLocalInputToUTC(localDateTimeString);
+    
     if (viewRef.current) {
       viewRef.current.environment.lighting = {
         type: "sun",
-        date: selectedDate,
+        date: utcDate,
       };
 
-      console.log("Lighting date updated to:", selectedDate);
+      console.log("Lighting date updated to UTC:", utcDate, "from local input:", localDateTimeString);
     }
   };
 
@@ -377,9 +441,43 @@ function App() {
   }, [viewGeolocation]);
 
   const runGeoprocessingTask = async () => {
-    const results = await executeGeoprocessingTask();
+    const results = await executeGeoprocessingTask({
+      "Time_configuration": "Whole year",
+      "Day_interval": 14,
+      "Hour_interval": 2,
+    });
+
+    // if (results.url) {
+    //   const gpLayer = new FeatureLayer({
+    //     url: results.url,
+    //     title: "Geoprocessing Result"
+    //   });
+    //   sceneRef.current?.add(gpLayer);
+    //   console.log("FeatureLayer added from geoprocessing result:", results.url);
+    // }
     console.log("Geoprocessing task executed successfully:", results);
+    await results.load();
   }
+
+  const handleSelectPremadeModel = async (modelUrl: string, height?: number) => {
+    if (sceneRef.current && sketchVMRef.current) {
+      sketchVMRef.current.pointSymbol = {
+        type: "point-3d",
+        symbolLayers: [
+          {
+            type: "object",
+            height: height || 10, // Default height if not provided
+            resource: {
+              href: modelUrl,
+            },
+          }
+        ]
+      };
+
+      sketchVMRef.current.create("point");
+      console.log("Premade model selected:", modelUrl, "with height:", height);
+    }
+  };
 
   return (
     <div className="App flex flex-col h-screen">
@@ -408,6 +506,9 @@ function App() {
             </div>
           </div>
 
+          {/* Model Selector */}
+          <ModelSelector onSelect={handleSelectPremadeModel} />
+
           {/* Upload Section */}
           <div className="flex items-center gap-4">
             <calcite-button 
@@ -418,6 +519,7 @@ function App() {
             </calcite-button>
             <input 
               type="datetime-local" 
+              value={getCurrentLocalTimeISO()}
               onChange={handleDatetimeChange}
               className="border rounded px-2 py-1"
             />

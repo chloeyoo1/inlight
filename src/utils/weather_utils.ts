@@ -1,4 +1,5 @@
 import SceneView from '@arcgis/core/views/SceneView';
+import { getCurrentUTCTime } from './time_utils';
 
 export type Geolocation = { lat: number; lon: number };
 
@@ -82,6 +83,6 @@ export function applyNWSWeatherToScene(nwsPeriod: any, view: SceneView) {
   console.log("Applied weather to scene:", { weatherType, cloudCover, precipitationIntensity });
   view.environment.lighting = {
     type: "sun",
-    date: new Date(nwsPeriod.startTime || Date.now()),
+    date: new Date(nwsPeriod.startTime || getCurrentUTCTime()),
   };
 }
