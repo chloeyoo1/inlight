@@ -6,7 +6,7 @@ A React-based web application for visualizing 3D models in an ArcGIS SceneView e
 
 - 3D model upload and visualization
 - ArcGIS SceneView integration
-- Real-time lighting controls
+- Real-time lighting and weather controls
 - Model management (upload, select, delete)
 - Server-side file storage
 - Support for .glb, .gltf, and .obj file formats
@@ -98,3 +98,6 @@ You don’t have to ever use `eject`. The curated feature set is suitable for sm
 You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
 To learn React, check out the [React documentation](https://reactjs.org/).
+
+
+Authors: Chloe Yoo, Ben Man, Yulia Nugroho, Ioannis Tsotras, Ethan Iraheta
