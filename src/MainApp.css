@@ -4,6 +4,87 @@
   height: 100vh;
 }
 
+.main-header {
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.logo-text {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2c3e50;
+  letter-spacing: -0.02em;
+}
+
+.header-cta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-button {
+  background: linear-gradient(135deg, #0066cc, #004499);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-button:hover {
+  background: linear-gradient(135deg, #0052a3, #003d7a);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.4);
+}
+
+.header-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 80px); /* Subtract header height */
+}
+
 .back-button-container {
   position: absolute;
   top: 1rem;
@@ -231,4 +312,30 @@
 
 .action-button.delete:hover {
   background-color: #dc2626;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-header {
+    padding: 1rem;
+  }
+  
+  .logo-text {
+    font-size: 1.25rem;
+  }
+  
+  .header-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .main-content {
+    height: calc(100vh - 70px); /* Adjust for smaller header on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .header-cta {
+    gap: 0.5rem;
+  }
 } 
