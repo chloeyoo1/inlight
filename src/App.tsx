@@ -20,6 +20,7 @@ import Daylight from "@arcgis/core/widgets/Daylight.js";
 
 import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/weather_utils';
 import { ModelService, ModelInfo } from './services/modelService';
+import { executeGeoprocessingTask } from './utils/geoproc_utils';
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
@@ -33,12 +34,11 @@ function App() {
   const daylightRef = useRef<Daylight | null>(null);
   
   // Active widget state
-  const [activeWidget, setActiveWidget] = useState<string>('none');
+  const [activeWidget, setActiveWidget] = useState<string>('editor');
 
   const [viewGeolocation, setViewGeolocation] = useState<Geolocation | null>(null);
 
   const widgets = [
-    { id: 'none', name: 'None', ref: null },
     { id: 'editor', name: 'Editor', ref: editorRef },
     { id: 'weather', name: 'Weather', ref: weatherRef },
     { id: 'shadowcast', name: 'Shadow Cast', ref: shadowCastRef },
@@ -376,6 +376,11 @@ function App() {
     }
   }, [viewGeolocation]);
 
+  const runGeoprocessingTask = async () => {
+    const results = await executeGeoprocessingTask();
+    console.log("Geoprocessing task executed successfully:", results);
+  }
+
   return (
     <div className="App flex flex-col h-screen">
       <div id="viewDiv" className="flex-1"></div>
@@ -384,7 +389,8 @@ function App() {
           
           {/* Widget Switcher */}
           <div className="mb-4 text-left">
-            <button onClick={getMapViewLocation}>update</button>
+            <button onClick={getMapViewLocation}>Update Location (for weather service)</button> <br />
+            <button onClick={runGeoprocessingTask}>Test Geoprocessing Execution</button> <br />
             <div className="flex flex-wrap gap-2 mb-4 justify-start">
               {widgets.map(widget => (
                 <button
