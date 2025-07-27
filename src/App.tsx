@@ -3,13 +3,15 @@ import './App.css';
 
 import "@esri/calcite-components";
 import "@esri/calcite-components/dist/components/calcite-button";
+import "@esri/calcite-components/dist/components/calcite-slider";
 
 import esriConfig from '@arcgis/core/config';
 import WebScene from '@arcgis/core/WebScene';
 import SceneView from '@arcgis/core/views/SceneView';
-import Editor from '@arcgis/core/widgets/Editor';
+import LayerList from '@arcgis/core/widgets/LayerList';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 import TileLayer from '@arcgis/core/layers/TileLayer';
+import MapImageLayer from '@arcgis/core/layers/MapImageLayer';
 // import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
 import Graphic from '@arcgis/core/Graphic';
@@ -24,7 +26,7 @@ import { getWeather, applyNWSWeatherToScene, type Geolocation } from './utils/we
 import { ModelService, ModelInfo } from './services/modelService';
 import { executeGeoprocessingTask } from './utils/geoproc_utils';
 import { getCurrentUTCTime, getCurrentLocalTimeISO, convertLocalInputToUTC, convertUTCToLocalInput } from './utils/time_utils';
-import ModelSelector from './components/ModelSelector';
+import PresetModels from './components/PresetModels';
 
 function App() {
   const viewRef = useRef<SceneView | null>(null);
@@ -32,18 +34,18 @@ function App() {
   const sketchVMRef = useRef<SketchViewModel | null>(null);
   
   // Widget refs
-  const editorRef = useRef<Editor | null>(null);
+  const layerListRef = useRef<LayerList | null>(null);
   const weatherRef = useRef<Weather | null>(null);
   const shadowCastRef = useRef<ShadowCast | null>(null);
   const daylightRef = useRef<Daylight | null>(null);
   
   // Active widget state
-  const [activeWidget, setActiveWidget] = useState<string>('editor');
+  const [activeWidget, setActiveWidget] = useState<string>('layerlist');
 
   const [viewGeolocation, setViewGeolocation] = useState<Geolocation | null>(null);
 
   const widgets = [
-    { id: 'editor', name: 'Editor', ref: editorRef },
+    { id: 'layerlist', name: 'Layer List', ref: layerListRef },
     { id: 'weather', name: 'Weather', ref: weatherRef },
     { id: 'shadowcast', name: 'Shadow Cast', ref: shadowCastRef },
     { id: 'daylight', name: 'Daylight', ref: daylightRef }
@@ -91,18 +93,54 @@ function App() {
     if (!viewRef.current) return;
 
     switch (widgetId) {
-      case 'editor':
-        if (!editorRef.current) {
-          const editor = new Editor({
+      case 'layerlist':
+        if (!layerListRef.current) {
+          const layerList = new LayerList({
             view: viewRef.current,
-            tooltipOptions: {
-              enabled: true,
-            },
-            labelOptions: {
-              enabled: true,
+            listItemCreatedFunction: (event) => {
+              const item = event.item;
+              if (item.layer && item.layer.type !== "group") {
+                // Add opacity slider for each layer
+                const slider = document.createElement("calcite-slider");
+                slider.setAttribute("min", "0");
+                slider.setAttribute("max", "1");
+                slider.setAttribute("step", "0.1");
+                slider.setAttribute("value", item.layer.opacity.toString());
+                slider.setAttribute("label-handles", "");
+                slider.setAttribute("label-ticks", "");
+                slider.setAttribute("ticks", "10");
+                slider.style.width = "100%";
+                slider.style.marginTop = "8px";
+                
+                // Create a container for the slider
+                const sliderContainer = document.createElement("div");
+                sliderContainer.style.padding = "0 10px";
+                
+                const label = document.createElement("label");
+                label.textContent = "Opacity";
+                label.style.fontSize = "12px";
+                label.style.color = "#6e6e6e";
+                label.style.display = "block";
+                label.style.marginBottom = "4px";
+                
+                sliderContainer.appendChild(label);
+                sliderContainer.appendChild(slider);
+                
+                // Add event listener for opacity changes
+                slider.addEventListener("calciteSliderChange", (e: any) => {
+                  if (item.layer) {
+                    item.layer.opacity = parseFloat(e.target.value);
+                  }
+                });
+                
+                item.panel = {
+                  content: sliderContainer,
+                  title: "Change layer opacity"
+                };
+              }
             }
           });
-          editorRef.current = editor;
+          layerListRef.current = layerList;
         }
         break;
       case 'weather':
@@ -219,8 +257,8 @@ function App() {
     webScene.add(modelLayer);
 
     // Add the tile package hosted service
-    const tilePackageLayer = new TileLayer({
-      url: "https://tiles.arcgis.com/tiles/LLNIdHmmdjO2qQ5q/arcgis/rest/services/solardirect_extilecache/MapServer",
+    const tilePackageLayer = new FeatureLayer({
+      url: "https://services8.arcgis.com/LLNIdHmmdjO2qQ5q/arcgis/rest/services/direct_polygon_2/FeatureServer",
       opacity: 0.8
     });
     webScene.add(tilePackageLayer);
@@ -257,10 +295,10 @@ function App() {
     viewRef.current = view;
 
     view.when(() => {
-      // Create and show the default Editor widget
-      createWidget('editor');
-      if (editorRef.current) {
-        view.ui.add(editorRef.current, "top-right");
+      // Create and show the default LayerList widget
+      createWidget('layerlist');
+      if (layerListRef.current) {
+        view.ui.add(layerListRef.current, "top-right");
       }
 
       console.log("WebScene spatial reference:", view.spatialReference);
@@ -507,16 +545,17 @@ function App() {
           </div>
 
           {/* Model Selector */}
-          <ModelSelector onSelect={handleSelectPremadeModel} />
+          <PresetModels onSelect={handleSelectPremadeModel} />
 
           {/* Upload Section */}
           <div className="flex items-center gap-4">
-            <calcite-button 
+            <button 
               onClick={handleImportModel}
               disabled={isUploading}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-300"
             >
               {isUploading ? 'Uploading...' : 'Import Your Model'}
-            </calcite-button>
+            </button>
             <input 
               type="datetime-local" 
               value={getCurrentLocalTimeISO()}
